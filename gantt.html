@@ -175,6 +175,13 @@ const ad=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
 const db=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000);
 let nPid=10,nTid=100;
 
+// ===== App-ready signal: bootstrap awaits this before pushing state into React =====
+// On slow devices (mobile/tablet) Babel takes longer to compile the JSX, so the bootstrap
+// can finish before <App/> mounts. Without this gate, window.__setCurrentUser etc. are
+// undefined when bootstrap tries to call them, and the app appears blank.
+let appReadyResolve;
+const appReadyPromise = new Promise(r => { appReadyResolve = r; });
+
 // ===== Color helpers for theme-aware text on colored bars =====
 function darken(hex,f){
   if(!hex)return '#000';
@@ -471,6 +478,8 @@ function App(){
     window.__setCurrentUser=setCurrentUser;
     window.__setOfflineMode=setOfflineMode;
     window.__setSyncStatus=setSyncStatus;
+    // Signal that App has mounted — bootstrap is awaiting this
+    if(appReadyResolve){ appReadyResolve(); }
   },[]);
   // Always re-bind saveToCloud since it closes over currentUser/offlineMode
   useEffect(()=>{
@@ -1282,13 +1291,19 @@ document.getElementById('migrationSkipBtn').addEventListener('click',()=>{
 // Main bootstrap
 (async function bootstrap(){
   let bootstrapDone=false;
-  const watchdog=setTimeout(()=>{
+  const watchdog=setTimeout(async ()=>{
     if(bootstrapDone)return;
     console.warn('Bootstrap watchdog triggered — forcing offline mode');
     bootstrapDone=true;
+    await appReadyPromise; // wait for React to mount before pushing
     if(window.__setOfflineMode)window.__setOfflineMode(true);
-  },5000);
+  },8000);
   const finish=()=>{bootstrapDone=true;clearTimeout(watchdog);};
+
+  // CRITICAL: wait until <App/> has mounted and exposed window.__setCurrentUser etc.
+  // On slow devices (mobile/tablet), Babel compilation of the React component can take
+  // longer than the auth session check, causing the user state to be silently dropped.
+  await appReadyPromise;
 
   try{
     // Check offline mode
