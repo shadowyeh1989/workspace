@@ -1,0 +1,5730 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>客戶接案管理表</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // Apply saved theme before page renders to prevent flash
+  (function() {
+    try {
+      var saved = localStorage.getItem('shadow_ledger_theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+        return;
+      }
+    } catch (e) {}
+    var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    document.documentElement.setAttribute('data-theme', prefersLight ? 'light' : 'dark');
+  })();
+</script>
+<style>
+  :root, [data-theme="dark"] {
+    --bg: #0e0e10;
+    --surface: #18181b;
+    --surface-2: #232327;
+    --surface-hover: #2a2a2f;
+    --border: #2e2e33;
+    --border-soft: #232327;
+    --text: #ededee;
+    --text-2: #a1a1a6;
+    --text-3: #6e6e73;
+    --accent: #d4a05c;
+    --accent-soft: #6b5234;
+    --danger: #c87f7f;
+    --danger-bg: #4a2828;
+    --shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 28px rgba(0,0,0,0.35);
+    --shadow-popup: 0 8px 28px rgba(0,0,0,0.5);
+    --shadow-popup-lg: 0 12px 32px rgba(0,0,0,0.55);
+    --shadow-modal: 0 24px 60px rgba(0,0,0,0.6);
+    --modal-overlay: rgba(0,0,0,0.6);
+    --row-hover: rgba(255,255,255,0.015);
+    --accent-glow-1: rgba(212,160,92,0.06);
+    --accent-glow-2: rgba(212,160,92,0.03);
+    --accent-tint-row: rgba(212,160,92,0.04);
+    --accent-tint-box: rgba(212,160,92,0.05);
+    --accent-tint-warn: rgba(160,113,66,0.08);
+    --tag-delete-hover: rgba(0,0,0,0.2);
+    --header-bg: rgba(14,14,16,0.85);
+    --radius: 6px;
+    --mono: ui-monospace, "SF Mono", "Menlo", "JetBrains Mono", "Roboto Mono", monospace;
+    --serif: "Iowan Old Style", "Charter", "Source Han Serif TC", "Noto Serif TC", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  }
+
+  [data-theme="light"] {
+    --bg: #faf8f3;
+    --surface: #ffffff;
+    --surface-2: #f3f1ec;
+    --surface-hover: #e9e6df;
+    --border: #ddd9d0;
+    --border-soft: #ece9e2;
+    --text: #1c1c1f;
+    --text-2: #5a5a60;
+    --text-3: #8e8e93;
+    --accent: #a87434;
+    --accent-soft: #f0e2cc;
+    --danger: #b04848;
+    --danger-bg: #fbe7e7;
+    --shadow: 0 1px 0 rgba(255,255,255,0.7) inset, 0 4px 16px rgba(80,60,30,0.06);
+    --shadow-popup: 0 6px 22px rgba(80,60,30,0.12);
+    --shadow-popup-lg: 0 10px 28px rgba(80,60,30,0.15);
+    --shadow-modal: 0 20px 50px rgba(60,45,20,0.18);
+    --modal-overlay: rgba(60,45,20,0.35);
+    --row-hover: rgba(168,116,52,0.04);
+    --accent-glow-1: rgba(168,116,52,0.05);
+    --accent-glow-2: rgba(168,116,52,0.025);
+    --accent-tint-row: rgba(168,116,52,0.05);
+    --accent-tint-box: rgba(168,116,52,0.06);
+    --accent-tint-warn: rgba(168,116,52,0.08);
+    --tag-delete-hover: rgba(0,0,0,0.06);
+    --header-bg: rgba(250,248,243,0.88);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 600px at 80% -10%, var(--accent-glow-1), transparent 60%),
+      radial-gradient(800px 400px at 0% 100%, var(--accent-glow-2), transparent 60%),
+      var(--bg);
+    min-height: 100vh;
+  }
+
+  /* ---------- HEADER ---------- */
+  header.app-header {
+    border-bottom: 1px solid var(--border);
+    background: var(--header-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 28px 12px;
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .brand-title {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+
+  .brand-title em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .year-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 6px 6px 14px;
+  }
+
+  .year-pill-label {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .year-select {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 999px;
+    cursor: pointer;
+    appearance: none;
+  }
+  .year-select:hover { background: var(--surface-hover); }
+
+  .icon-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .icon-btn:hover { background: var(--surface-hover); color: var(--text); border-color: #3a3a40; }
+  .icon-btn svg { width: 16px; height: 16px; }
+
+  .text-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .text-btn:hover { background: var(--surface-hover); color: var(--text); border-color: #3a3a40; }
+  .text-btn.primary { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .text-btn.primary:hover { background: #7d6240; }
+
+  /* ---------- TABS ---------- */
+  .view-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 28px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .view-tab {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    padding: 12px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--sans);
+    position: relative;
+    transition: color 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .view-tab:hover { color: var(--text-2); }
+  .view-tab.active { color: var(--text); }
+  .view-tab.active::after {
+    content: '';
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: -1px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+  }
+
+  /* ---------- MAIN ---------- */
+  main {
+    padding: 24px 28px 80px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  .view-section { display: none; }
+  .view-section.active { display: block; }
+
+  /* ---------- MONTH TABS ---------- */
+  .month-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 6px 2px 14px;
+    margin-bottom: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .month-tabs::-webkit-scrollbar { height: 6px; }
+  .month-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .month-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-3);
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--serif);
+    font-size: 14px;
+    font-style: italic;
+    white-space: nowrap;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .month-tab:hover { color: var(--text-2); background: var(--surface); }
+  .month-tab.active {
+    color: var(--text);
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+  .month-tab .count {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-style: normal;
+    color: var(--text-3);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
+  }
+  .month-tab.active .count { background: var(--bg); color: var(--accent); }
+
+  /* ---------- TABLE ---------- */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  table.projects {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1100px;
+  }
+
+  table.projects thead th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    padding: 14px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+  }
+
+  /* Column resize handle */
+  table.projects thead th {
+    position: relative;
+  }
+
+  .col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .col-resize-handle::before {
+    content: '';
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    transition: all 0.12s;
+  }
+
+  .col-resize-handle:hover::before,
+  .col-resize-handle.dragging::before {
+    width: 2px;
+    height: 28px;
+    background: var(--accent);
+  }
+
+  body.col-resizing,
+  body.col-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
+  table.projects tbody td {
+    padding: 0;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+  }
+
+  table.projects tbody tr {
+    transition: background 0.1s;
+  }
+  table.projects tbody tr:hover { background: var(--row-hover); }
+  table.projects tbody tr:last-child td { border-bottom: none; }
+
+  /* Cells */
+  .cell {
+    padding: 10px 14px;
+    min-height: 42px;
+    width: 100%;
+    display: block;
+  }
+
+  .cell-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: var(--sans);
+    font-size: 13.5px;
+    margin: 2px 2px;
+    width: calc(100% - 4px);
+    line-height: 1.4;
+    resize: none;
+    transition: all 0.1s;
+    font-family: inherit;
+  }
+  .cell-input:hover { background: var(--surface-2); }
+  .cell-input:focus {
+    outline: none;
+    background: var(--surface-2);
+    border-color: var(--accent);
+  }
+
+  .cell-input.mono {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+  }
+
+  .cell-input.num {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    text-align: right;
+  }
+
+  textarea.cell-input {
+    min-height: 38px;
+    overflow: hidden;
+  }
+
+  /* Column widths */
+  .col-handle { width: 56px; padding: 0 !important; }
+  .col-client { width: 140px; }
+  .col-num { width: 110px; }
+  .col-project { width: 240px; }
+  .col-status { width: 120px; }
+  .col-payment { width: 120px; }
+  .col-hours { width: 200px; }
+  .col-withholding { width: 100px; }
+  .col-notes { width: 220px; }
+  .col-custom { min-width: 50px; }
+  .col-add { width: 44px; text-align: center; padding: 0 !important; }
+  .col-actions { width: 44px; text-align: center; }
+
+  /* Custom column header */
+  .col-header-custom {
+    position: relative;
+    padding-right: 28px !important;
+    cursor: text;
+  }
+  .col-header-custom-name {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-3);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 2px 4px;
+    border-radius: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+  .col-header-custom-name:focus {
+    outline: none;
+    border-color: var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .col-header-delete {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    opacity: 0;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    transition: opacity 0.15s;
+  }
+  .col-header-custom:hover .col-header-delete { opacity: 1; }
+  .col-header-delete:hover { color: var(--danger); background: var(--danger-bg); }
+
+  .add-col-btn {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-3);
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .add-col-btn:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
+
+  .add-col-popup {
+    position: absolute;
+    top: calc(100% - 4px);
+    right: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 220px;
+    box-shadow: var(--shadow-popup);
+    z-index: 100;
+    display: flex;
+    gap: 6px;
+    animation: dropdownIn 0.12s ease-out;
+  }
+  .add-col-popup input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 9px;
+    border-radius: 5px;
+    font-size: 12.5px;
+    font-family: inherit;
+    min-width: 0;
+  }
+  .add-col-popup input:focus { outline: none; border-color: var(--accent); }
+
+  /* Tag display & selector */
+  .tag-cell {
+    padding: 12px 8px;
+    cursor: pointer;
+    min-height: 42px;
+    position: relative;
+  }
+  .tag-cell:hover { background: var(--surface-2); }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tag-empty {
+    color: var(--text-3);
+    font-size: 12px;
+    font-style: italic;
+  }
+
+  /* Tag dropdown */
+  .tag-dropdown {
+    position: absolute;
+    top: calc(100% - 4px);
+    left: 8px;
+    z-index: 100;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px;
+    min-width: 180px;
+    box-shadow: var(--shadow-popup);
+    animation: dropdownIn 0.12s ease-out;
+  }
+
+  @keyframes dropdownIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .tag-dropdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .tag-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .tag-option:hover { background: var(--surface-hover); }
+
+  .tag-option-clear {
+    color: var(--text-3);
+    font-size: 12px;
+    font-style: italic;
+    padding: 6px 8px;
+  }
+
+  .tag-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+
+  .tag-add-row {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    align-items: center;
+  }
+
+  .tag-add-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: inherit;
+    min-width: 0;
+  }
+  .tag-add-row input:focus { outline: none; border-color: var(--accent); }
+
+  .tag-add-btn {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .tag-add-btn:hover { background: #7d6240; color: #fff; }
+
+  .color-picker {
+    display: flex;
+    gap: 4px;
+    padding: 4px 6px 8px;
+    flex-wrap: wrap;
+  }
+  .color-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.1s;
+  }
+  .color-swatch:hover { transform: scale(1.15); }
+  .color-swatch.selected { border-color: var(--text); }
+
+  .tag-option-delete {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .tag-option:hover .tag-option-delete { opacity: 1; }
+  .tag-option-delete:hover { color: var(--danger); }
+
+  /* Hours cell */
+  .hours-cell {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hours-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .hours-value {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-feature-settings: "tnum";
+    color: var(--text);
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    min-width: 44px;
+    text-align: right;
+  }
+  .hours-value:hover { background: var(--surface-2); border-color: var(--border); }
+  .hours-value.empty { color: var(--text-3); font-style: italic; font-size: 12px; }
+
+  /* Editable hours input */
+  .hours-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    font-feature-settings: "tnum";
+    padding: 3px 6px;
+    border-radius: 5px;
+    width: 56px;
+    text-align: right;
+    transition: all 0.1s;
+  }
+  .hours-input::placeholder { color: var(--text-3); font-style: italic; font-size: 12px; }
+  .hours-input:hover { background: var(--surface-2); border-color: var(--border); }
+  .hours-input:focus {
+    outline: none;
+    background: var(--surface-2);
+    border-color: var(--accent);
+  }
+
+  .hours-detail-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-3);
+    width: 24px;
+    height: 22px;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
+  }
+  .hours-detail-btn:hover { background: var(--surface-2); border-color: var(--border); color: var(--accent); }
+  .hours-detail-btn svg { width: 12px; height: 12px; }
+
+  .hours-unit {
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  .hours-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .hours-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    min-width: 40px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 500;
+    transition: all 0.1s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hours-btn:hover { background: var(--surface-hover); color: var(--text); border-color: #3a3a40; }
+  .hours-btn.plus:hover { color: var(--accent); border-color: var(--accent); }
+  .hours-btn.minus:hover { color: var(--danger); border-color: var(--danger); }
+
+  /* Action button (delete row) */
+  .row-actions {
+    padding: 10px 6px;
+    text-align: center;
+  }
+
+  /* Row move handle (left side) */
+  .row-handle {
+    padding: 8px 4px;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .row-handle-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  /* Drag handle (6-dot grip icon) */
+  .row-drag-handle {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: grab;
+    width: 18px;
+    height: 28px;
+    border-radius: 4px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.1s, background 0.1s;
+    touch-action: none;
+  }
+  table.projects tbody tr:hover .row-drag-handle { opacity: 0.55; }
+  .row-drag-handle:hover { opacity: 1 !important; background: var(--surface-2); color: var(--accent); }
+  .row-drag-handle:active { cursor: grabbing; }
+  .row-drag-handle svg { width: 12px; height: 16px; }
+
+  /* Row being dragged */
+  table.projects tbody tr.dragging {
+    opacity: 0.35;
+    background: var(--surface-2);
+  }
+
+  /* Drop indicator — a thin line showing where the row will land */
+  .drop-indicator {
+    height: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    margin: 0;
+    pointer-events: none;
+    border-radius: 1px;
+  }
+  .drop-indicator-row td {
+    padding: 0 !important;
+    border: none !important;
+    height: 2px;
+  }
+
+  body.row-dragging,
+  body.row-dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
+  /* Context menu */
+  .context-menu {
+    position: fixed;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px;
+    min-width: 180px;
+    box-shadow: var(--shadow-popup-lg);
+    z-index: 250;
+    animation: dropdownIn 0.1s ease-out;
+  }
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-2);
+    user-select: none;
+    transition: background 0.1s, color 0.1s;
+  }
+  .context-menu-item:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .context-menu-item.danger { color: var(--danger); }
+  .context-menu-item.danger:hover { background: var(--danger-bg); }
+  .context-menu-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .context-menu-item-shortcut {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-3);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+
+  .context-menu-divider {
+    height: 1px;
+    background: var(--border-soft);
+    margin: 4px 2px;
+  }
+
+  .row-reorder-stack {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 1px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  table.projects tbody tr:hover .row-reorder-stack { opacity: 0.55; }
+
+  .row-reorder-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    width: 18px;
+    height: 12px;
+    border-radius: 3px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
+  }
+  .row-reorder-btn:hover {
+    background: var(--surface-2);
+    color: var(--accent);
+  }
+  .row-reorder-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+  }
+  .row-reorder-btn:disabled:hover {
+    background: transparent;
+    color: var(--text-3);
+  }
+  .row-reorder-btn svg { width: 10px; height: 10px; }
+
+  .row-move {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    opacity: 0;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  table.projects tbody tr:hover .row-move { opacity: 0.55; }
+  .row-move:hover { opacity: 1 !important; background: var(--surface-2); color: var(--accent); }
+  .row-move svg { width: 14px; height: 14px; }
+
+  /* Month picker popup */
+  .move-month-popup {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px;
+    min-width: 256px;
+    box-shadow: var(--shadow-popup-lg);
+    z-index: 200;
+    animation: dropdownIn 0.12s ease-out;
+  }
+
+  .move-month-year-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 4px 8px;
+    border-bottom: 1px dashed var(--border-soft);
+    margin-bottom: 6px;
+    gap: 6px;
+  }
+
+  .move-month-year-arrow {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .move-month-year-arrow:hover {
+    background: var(--surface-hover);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .move-month-year-label {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    flex: 1;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .move-month-year-label .new-badge {
+    color: var(--accent);
+    font-family: var(--sans);
+    font-size: 10px;
+    background: var(--accent-soft);
+    padding: 2px 6px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    font-weight: 400;
+  }
+
+  .move-month-title {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 4px 6px 8px;
+    font-family: var(--sans);
+  }
+
+  .move-month-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+
+  .move-month-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    padding: 9px 4px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .move-month-btn:not(.current):hover {
+    background: var(--surface-hover);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .move-month-btn.current {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+    cursor: default;
+    position: relative;
+  }
+  .move-month-btn.current::after {
+    content: '·';
+    position: absolute;
+    top: 0;
+    right: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .row-delete {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    opacity: 0;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  table.projects tbody tr:hover .row-delete { opacity: 1; }
+  .row-delete:hover { background: var(--danger-bg); color: var(--danger); }
+
+  /* Add row button */
+  .add-row-btn {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-3);
+    width: 100%;
+    padding: 12px;
+    border-radius: 0 0 12px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .add-row-btn:hover {
+    color: var(--accent);
+    background: var(--accent-tint-row);
+  }
+
+  /* Footer totals */
+  .table-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .totals {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .total-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .total-label {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .total-value {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-feature-settings: "tnum";
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .total-value.accent { color: var(--accent); }
+
+  /* Empty state */
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-3);
+  }
+  .empty-state-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+  .empty-state-title {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    margin-bottom: 6px;
+    color: var(--text-2);
+  }
+  .empty-state-desc {
+    font-size: 13px;
+  }
+
+  /* ---------- MONTH STATS VIEW ---------- */
+  .month-stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .month-stats-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  table.month-stats {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  table.month-stats thead th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    white-space: nowrap;
+  }
+  table.month-stats thead th.num { text-align: right; }
+
+  table.month-stats tbody td {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: middle;
+  }
+  table.month-stats tbody tr:last-child td { border-bottom: none; }
+  table.month-stats tbody tr:hover { background: var(--row-hover); }
+
+  /* Empty months — dim */
+  table.month-stats tbody tr.empty td { opacity: 0.45; }
+
+  /* Current month — accent line */
+  table.month-stats tbody tr.current td:first-child {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .month-stats-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 15px;
+  }
+  .month-stats-label .month-num {
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 13px;
+    color: var(--text-3);
+    background: var(--surface-2);
+    padding: 3px 8px;
+    border-radius: 4px;
+    min-width: 32px;
+    text-align: center;
+    font-feature-settings: "tnum";
+  }
+  table.month-stats tbody tr.current .month-stats-label .month-num {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .month-stats-num {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    text-align: right;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .month-stats-num.empty { color: var(--text-3); font-style: italic; font-size: 12px; }
+  .month-stats-num.profit { color: var(--accent); }
+  .month-stats-num.count { color: var(--text-2); font-size: 12.5px; }
+
+  /* Footer totals + averages */
+  table.month-stats tfoot td {
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  table.month-stats tfoot tr.totals td {
+    color: var(--text);
+    font-weight: 500;
+  }
+  table.month-stats tfoot tr.averages td {
+    color: var(--text-2);
+    border-top: 1px dashed var(--border-soft);
+  }
+  table.month-stats tfoot td.label {
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    font-weight: 500;
+  }
+  table.month-stats tfoot td.num {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    text-align: right;
+  }
+  table.month-stats tfoot tr.totals td.num.profit { color: var(--accent); }
+
+  .month-stats-bar-cell {
+    padding: 0 !important;
+  }
+  .month-stats-bar-wrap {
+    padding: 12px 18px;
+    width: 100%;
+  }
+  .month-stats-bar-track {
+    height: 6px;
+    background: var(--surface-2);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .month-stats-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.3s ease-out;
+  }
+  table.month-stats tbody tr.empty .month-stats-bar-track { opacity: 0.3; }
+
+  /* ---------- TAX SUMMARY VIEW ---------- */
+  .tax-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .tax-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 22px 18px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tax-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--card-color, var(--accent));
+  }
+
+  .tax-card-code {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--card-color, var(--accent));
+    letter-spacing: 0.04em;
+    margin-bottom: 2px;
+    line-height: 1;
+  }
+
+  .tax-card-label {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 15px;
+    color: var(--text-2);
+    margin-bottom: 18px;
+  }
+
+  .tax-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 0;
+    font-size: 13px;
+  }
+
+  .tax-card-row + .tax-card-row {
+    border-top: 1px dashed var(--border-soft);
+  }
+
+  .tax-card-row .label {
+    color: var(--text-3);
+    letter-spacing: 0.04em;
+  }
+  .tax-card-row .value {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    color: var(--text);
+  }
+  .tax-card-row.deduction .value { color: #c87f7f; }
+  .tax-card-row.taxable {
+    margin-top: 4px;
+    padding-top: 11px;
+    border-top: 1px solid var(--border) !important;
+  }
+  .tax-card-row.taxable .label {
+    color: var(--text-2);
+    font-weight: 500;
+  }
+  .tax-card-row.taxable .value {
+    font-size: 18px;
+    color: var(--card-color, var(--accent));
+    font-weight: 500;
+  }
+
+  .tax-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--text-3);
+    line-height: 1.55;
+    border-left: 2px solid var(--card-color, var(--border));
+  }
+
+  .tax-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .tax-uncategorized {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  .tax-uncategorized.alert {
+    border-color: #6a4a2e;
+    background: linear-gradient(180deg, var(--accent-tint-warn), var(--surface));
+  }
+
+  .tax-uncategorized-text {
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .tax-uncategorized-text strong {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  .tax-disclaimer {
+    margin-top: 24px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    font-size: 11.5px;
+    color: var(--text-3);
+    line-height: 1.7;
+  }
+  .tax-disclaimer strong {
+    color: var(--text-2);
+    font-weight: 500;
+  }
+
+  /* ---------- CLIENT SUMMARY VIEW ---------- */
+  .client-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+  }
+
+  .client-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s;
+  }
+  .client-card:hover { border-color: #3a3a40; }
+
+  .client-card-header {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .client-name {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 2px;
+  }
+
+  .client-card-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .client-card-totals {
+    text-align: right;
+  }
+
+  .client-card-total {
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--accent);
+    font-weight: 500;
+    font-feature-settings: "tnum";
+  }
+
+  .client-card-after {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    font-feature-settings: "tnum";
+  }
+
+  .client-card-list {
+    padding: 6px 0;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .client-project-row {
+    padding: 10px 18px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .client-project-row:last-child { border-bottom: none; }
+
+  .client-project-month {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    background: var(--surface-2);
+    padding: 2px 7px;
+    border-radius: 4px;
+    min-width: 32px;
+    text-align: center;
+  }
+
+  .client-project-name {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .client-project-amount {
+    font-family: var(--mono);
+    color: var(--text-2);
+    font-feature-settings: "tnum";
+    font-size: 12.5px;
+  }
+
+  .client-card-empty {
+    padding: 32px 18px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  /* ---------- SETTINGS VIEW ---------- */
+  .settings-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .settings-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-style: italic;
+    margin: 0 0 6px;
+  }
+
+  .settings-desc {
+    color: var(--text-3);
+    font-size: 13px;
+    margin: 0 0 16px;
+  }
+
+  .tag-management {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .tag-mgmt-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 4px 3px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+  }
+
+  .tag-mgmt-delete {
+    background: transparent;
+    border: none;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .tag-mgmt-delete:hover { opacity: 1; background: var(--tag-delete-hover); }
+
+  .new-tag-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .new-tag-row input {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    flex: 1;
+    min-width: 140px;
+  }
+  .new-tag-row input:focus { outline: none; border-color: var(--accent); }
+
+  .data-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  /* Modal for work entries */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-overlay);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: var(--shadow-modal);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-title {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-style: italic;
+    margin: 0;
+  }
+
+  .modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .modal-close:hover { color: var(--text); }
+
+  .modal-body {
+    padding: 14px 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .work-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 22px;
+    transition: background 0.1s;
+  }
+  .work-entry:hover { background: var(--surface-2); }
+
+  .work-entry-time {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+    flex: 1;
+  }
+
+  .work-entry-hours {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+    background: var(--surface-2);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .work-entry-delete {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .work-entry-delete:hover { color: var(--danger); background: var(--danger-bg); }
+
+  .modal-footer {
+    padding: 12px 22px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  .modal-empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--text-3);
+    font-style: italic;
+    font-size: 13px;
+  }
+
+  /* Year management dialog */
+  .year-manage {
+    position: absolute;
+    top: 100%;
+    margin-top: 6px;
+    right: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+    min-width: 200px;
+    box-shadow: var(--shadow-popup-lg);
+    z-index: 80;
+    display: none;
+  }
+  .year-manage.show { display: block; }
+
+  .year-manage-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .year-manage-item:hover { background: var(--surface-hover); }
+  .year-manage-item.current { color: var(--accent); }
+  .year-manage-item .delete {
+    opacity: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+  }
+  .year-manage-item:hover .delete { opacity: 0.7; }
+  .year-manage-item .delete:hover { color: var(--danger); opacity: 1; }
+
+  .year-manage-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  .year-manage-add {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+  }
+  .year-manage-add input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: var(--mono);
+    min-width: 0;
+  }
+  .year-manage-add input:focus { outline: none; border-color: var(--accent); }
+
+  /* ===== AUTH GATE (login screen) ===== */
+  .auth-gate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 28px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: var(--shadow);
+  }
+  .auth-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+  .auth-title em {
+    color: var(--accent);
+    font-style: italic;
+  }
+  .auth-sub {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 22px;
+  }
+  .auth-field {
+    margin-bottom: 14px;
+  }
+  .auth-field label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .auth-field input {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-family: var(--sans);
+  }
+  .auth-field input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .auth-submit {
+    width: 100%;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 11px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--sans);
+    margin-top: 6px;
+    transition: opacity 0.15s;
+  }
+  .auth-submit:hover { opacity: 0.85; }
+  .auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-mode-switch {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .auth-mode-switch a {
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .auth-mode-switch a:hover { text-decoration: underline; }
+  .auth-error {
+    background: var(--danger-bg);
+    color: var(--danger);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    display: none;
+    border: 1px solid var(--danger);
+  }
+  .auth-error.show { display: block; }
+  .auth-offline {
+    background: var(--surface-2);
+    color: var(--text-3);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    margin-top: 12px;
+    text-align: center;
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .auth-offline:hover { color: var(--text-2); }
+
+  /* ===== SYNC STATUS PILL (in header) ===== */
+  .user-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 4px 4px 12px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-2);
+    position: relative;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .user-pill:hover { background: var(--surface-hover); }
+  .user-pill .email {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    font-size: 11px;
+    color: var(--text-2);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-pill .sync-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .user-pill .sync-dot.synced { background: #6a9c6a; }
+  .user-pill .sync-dot.syncing {
+    background: #d4a05c;
+    animation: pulse-dot 1.2s ease-in-out infinite;
+  }
+  .user-pill .sync-dot.offline { background: var(--text-3); }
+  .user-pill .sync-dot.error { background: var(--danger); }
+  .user-pill .chev {
+    color: var(--text-3);
+    font-size: 9px;
+    padding: 0 4px;
+  }
+  [data-theme="light"] .user-pill .sync-dot.synced { background: #4a7a4a; }
+
+  .user-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+    min-width: 240px;
+    box-shadow: var(--shadow-popup-lg);
+    z-index: 200;
+    animation: dropdownIn 0.12s ease-out;
+  }
+  .user-menu-info {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 4px;
+  }
+  .user-menu-email {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-menu-status {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .user-menu-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    transition: background 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .user-menu-item:hover { background: var(--surface-hover); }
+  .user-menu-item.danger { color: var(--danger); }
+  .user-menu-item.danger:hover { background: var(--danger-bg); }
+
+  /* ===== MIGRATION DIALOG (first-time login with local data) ===== */
+  .migration-dialog {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-overlay);
+    z-index: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .migration-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 440px;
+    width: 100%;
+    box-shadow: var(--shadow-modal);
+  }
+  .migration-title {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    margin: 0 0 8px;
+  }
+  .migration-text {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.65;
+    margin-bottom: 20px;
+  }
+  .migration-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Backup reminder badge in header */
+  .backup-badge-wrap {
+    position: relative;
+    display: inline-block;
+  }
+  .backup-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px 4px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--text-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--sans);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .backup-badge:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+    border-color: #3a3a40;
+  }
+  .backup-badge.warn {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .backup-badge.danger {
+    color: var(--danger);
+    background: var(--danger-bg);
+    border-color: var(--danger);
+  }
+  .backup-badge.auto {
+    color: #6a9c6a;
+    background: rgba(106,156,106,0.1);
+    border-color: rgba(106,156,106,0.4);
+  }
+  [data-theme="light"] .backup-badge.auto {
+    color: #4a7a4a;
+    background: rgba(74,122,74,0.08);
+    border-color: rgba(74,122,74,0.3);
+  }
+  .backup-badge svg { width: 11px; height: 11px; }
+  .backup-badge .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .backup-badge.auto .dot {
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  /* Auto-backup section in settings */
+  .auto-backup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .auto-backup-status {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  .auto-backup-title {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .auto-backup-meta {
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .auto-backup-meta.on { color: #6a9c6a; }
+  [data-theme="light"] .auto-backup-meta.on { color: #4a7a4a; }
+
+  /* Backup dropdown menu (header) */
+  .backup-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+    min-width: 280px;
+    box-shadow: var(--shadow-popup-lg);
+    z-index: 300;
+    animation: dropdownIn 0.12s ease-out;
+  }
+  .backup-menu-header {
+    padding: 8px 10px 6px;
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .backup-menu-info {
+    padding: 4px 10px 10px;
+    font-size: 11.5px;
+    color: var(--text-2);
+    line-height: 1.7;
+  }
+  .backup-menu-info .ts {
+    color: var(--text);
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+  }
+  .backup-menu-info .ts.auto-on { color: #6a9c6a; }
+  [data-theme="light"] .backup-menu-info .ts.auto-on { color: #4a7a4a; }
+  .backup-menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+  .backup-menu-item {
+    padding: 9px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.1s;
+  }
+  .backup-menu-item:hover { background: var(--surface-hover); }
+  .backup-menu-item.accent { color: var(--accent); }
+  .backup-menu-item.accent:hover { background: var(--accent-soft); }
+  .backup-menu-item.danger { color: var(--danger); }
+  .backup-menu-item.danger:hover { background: var(--danger-bg); }
+  .backup-menu-status {
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #6a9c6a;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  [data-theme="light"] .backup-menu-status { color: #4a7a4a; }
+  .backup-menu-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .backup-menu-unsupported {
+    padding: 10px;
+    font-size: 11px;
+    color: var(--text-3);
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: var(--shadow-popup-lg);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s;
+    z-index: 300;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a40; }
+
+  @media (max-width: 768px) {
+    .header-top { padding: 14px 16px 10px; }
+    .view-tabs { padding: 0 12px; overflow-x: auto; }
+    main { padding: 16px 12px 60px; }
+    .brand-title { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-top">
+    <div class="brand">
+      <h1 class="brand-title">客戶接案<em>管理表</em></h1>
+      <div class="brand-sub">CLIENT · PROJECT · LEDGER</div>
+    </div>
+    <div class="header-actions">
+      <div class="year-pill" style="position:relative">
+        <span class="year-pill-label">YEAR</span>
+        <select class="year-select" id="yearSelect"></select>
+        <button class="icon-btn" id="yearManageBtn" title="管理年度" style="width:28px;height:28px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        </button>
+        <div class="year-manage" id="yearManage"></div>
+      </div>
+      <div id="userPillWrap" style="position:relative;display:none">
+        <div id="userPill" class="user-pill" title="點擊查看選項">
+          <span class="sync-dot offline" id="userSyncDot"></span>
+          <span class="email" id="userEmail"></span>
+          <span class="chev">▾</span>
+        </div>
+        <div id="userMenu" class="user-menu" style="display:none"></div>
+      </div>
+      <div class="backup-badge-wrap">
+        <div id="backupBadge" class="backup-badge" title="備份狀態 · 點擊查看選項"></div>
+        <div id="backupMenu" class="backup-menu" style="display:none"></div>
+      </div>
+      <button class="icon-btn" id="themeToggle" title="切換主題">
+        <svg id="themeIconDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        <svg id="themeIconLight" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+      </button>
+      <button class="icon-btn" id="exportBtn" title="匯出資料 (備份)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button class="icon-btn" id="importBtn" title="匯入資料">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </div>
+  </div>
+  <nav class="view-tabs">
+    <button class="view-tab active" data-view="monthly">月份總覽</button>
+    <button class="view-tab" data-view="monthstats">月份統計</button>
+    <button class="view-tab" data-view="client">客戶年度總覽</button>
+    <button class="view-tab" data-view="tax">扣繳稅務</button>
+    <button class="view-tab" data-view="settings">標籤與資料</button>
+  </nav>
+</header>
+
+<main>
+  <!-- Monthly View -->
+  <section class="view-section active" data-view="monthly">
+    <div class="month-tabs" id="monthTabs"></div>
+    <div id="monthContent"></div>
+  </section>
+
+  <!-- Monthly Stats View -->
+  <section class="view-section" data-view="monthstats">
+    <div id="monthStatsContent"></div>
+  </section>
+
+  <!-- Client Summary View -->
+  <section class="view-section" data-view="client">
+    <div id="clientSummary"></div>
+  </section>
+
+  <!-- Tax Summary View -->
+  <section class="view-section" data-view="tax">
+    <div id="taxSummary"></div>
+  </section>
+
+  <!-- Settings View -->
+  <section class="view-section" data-view="settings">
+    <div class="settings-section">
+      <h2 class="settings-title">客戶 標籤</h2>
+      <p class="settings-desc">在表格的「客戶」欄位輸入新客戶名稱會自動加入。下方可管理或刪除已存在的客戶標籤。</p>
+      <div class="tag-management" id="clientTagsList"></div>
+      <div class="new-tag-row">
+        <input type="text" id="newClientTagName" placeholder="新客戶名稱…" maxlength="30">
+        <div class="color-picker" id="newClientTagColor"></div>
+        <button class="text-btn primary" id="addClientTagBtn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2 class="settings-title">專案狀態 標籤</h2>
+      <p class="settings-desc">在表格中點擊「專案狀態」欄位即可選擇或新增。下方可管理現有標籤。</p>
+      <div class="tag-management" id="projectTagsList"></div>
+      <div class="new-tag-row">
+        <input type="text" id="newProjectTagName" placeholder="新標籤名稱…" maxlength="20">
+        <div class="color-picker" id="newProjectTagColor"></div>
+        <button class="text-btn primary" id="addProjectTagBtn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2 class="settings-title">付款狀態 標籤</h2>
+      <p class="settings-desc">在表格中點擊「付款狀態」欄位即可選擇或新增。</p>
+      <div class="tag-management" id="paymentTagsList"></div>
+      <div class="new-tag-row">
+        <input type="text" id="newPaymentTagName" placeholder="新標籤名稱…" maxlength="20">
+        <div class="color-picker" id="newPaymentTagColor"></div>
+        <button class="text-btn primary" id="addPaymentTagBtn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2 class="settings-title">扣繳類別 標籤</h2>
+      <p class="settings-desc">用來標註各案件的所得類別,便於年度稅務試算。預設有 9A、9B、50,可自行增減。</p>
+      <div class="tag-management" id="withholdingTagsList"></div>
+      <div class="new-tag-row">
+        <input type="text" id="newWithholdingTagName" placeholder="新標籤名稱…" maxlength="20">
+        <div class="color-picker" id="newWithholdingTagColor"></div>
+        <button class="text-btn primary" id="addWithholdingTagBtn">新增</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2 class="settings-title">資料管理</h2>
+      <p class="settings-desc">所有資料儲存在你的瀏覽器中。建議定期匯出備份,或啟用自動備份(點右上角備份徽章)。</p>
+      <div class="data-actions">
+        <button class="text-btn" id="exportBtn2">📥 匯出全部資料 (.json)</button>
+        <button class="text-btn" id="importBtn2">📤 匯入資料</button>
+        <button class="text-btn" id="resetBtn" style="margin-left:auto;color:var(--danger);border-color:var(--danger-bg)">⚠ 清除所有資料</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Work Entries Modal -->
+<div class="modal-overlay" id="workModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">工時紀錄</h3>
+      <button class="modal-close" id="workModalClose">✕</button>
+    </div>
+    <div class="modal-body" id="workModalBody"></div>
+    <div class="modal-footer">
+      <span style="color:var(--text-3);font-size:12px;letter-spacing:0.1em">TOTAL</span>
+      <span id="workModalTotal" style="color:var(--accent);font-size:15px;font-weight:500">0 小時</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Auth gate (login screen) -->
+<div class="auth-gate" id="authGate" style="display:none">
+  <div class="auth-card">
+    <h1 class="auth-title">客戶接案<em>管理表</em></h1>
+    <div class="auth-sub">CLIENT · PROJECT · LEDGER</div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <form id="authForm">
+      <div class="auth-field">
+        <label for="authEmail">Email</label>
+        <input type="email" id="authEmail" autocomplete="email" required>
+      </div>
+      <div class="auth-field">
+        <label for="authPassword">密碼</label>
+        <input type="password" id="authPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="auth-submit" id="authSubmit">登入</button>
+    </form>
+
+    <div class="auth-mode-switch">
+      <span id="authModeText">還沒有帳號?</span>
+      <a id="authModeSwitch">註冊新帳號</a>
+    </div>
+
+    <div class="auth-offline" id="authOfflineBtn" title="不登入,只在本機使用">
+      ⏏ 離線使用 (僅本機 · 不同步)
+    </div>
+  </div>
+</div>
+
+<!-- Migration dialog: local data exists but cloud is empty -->
+<div class="migration-dialog" id="migrationDialog" style="display:none">
+  <div class="migration-card">
+    <h2 class="migration-title">偵測到本機已有資料</h2>
+    <div class="migration-text" id="migrationText">
+      你的瀏覽器中有過去儲存的資料,而雲端帳號目前是空的。<br><br>
+      要把本機資料<strong style="color:var(--text)">上傳到雲端</strong>嗎?上傳後其他裝置就能看到。
+    </div>
+    <div class="migration-actions">
+      <button class="text-btn" id="migrationSkipBtn">略過 · 使用雲端 (空)</button>
+      <button class="text-btn primary" id="migrationUploadBtn">上傳本機資料到雲端</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =============== CONSTANTS =============== */
+/* =============== SUPABASE CLOUD SYNC =============== */
+const SUPABASE_URL = 'https://bokmluubqcnezjcboogq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJva21sdXVicWNuZXpqY2Jvb2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDI2ODIsImV4cCI6MjA5NTk3ODY4Mn0.W-cvOomywSU2L8xJaX98052_UZqed7rIkALQ_ETxxTw';
+const CLOUD_TABLE = 'ledger_data';
+const CLOUD_SYNC_DEBOUNCE_MS = 3000;
+const OFFLINE_MODE_KEY = 'shadow_ledger_offline_mode';
+
+// Sync state machine
+let sbClient = null;                // our Supabase client instance
+let currentUser = null;             // {id, email} when logged in, null when offline / not logged in
+let syncStatus = 'offline';         // 'synced' | 'syncing' | 'offline' | 'error'
+let cloudSyncTimer = null;
+let cloudSyncInFlight = false;
+let cloudLastSavedAt = null;
+let offlineMode = false;            // true = user chose "offline only" — no cloud sync
+
+function initSupabase() {
+  if (!window.supabase || !window.supabase.createClient) {
+    console.warn('Supabase SDK not loaded');
+    return false;
+  }
+  if (sbClient) return true;
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true }
+  });
+  return true;
+}
+
+function setSyncStatus(status) {
+  syncStatus = status;
+  const dot = document.getElementById('userSyncDot');
+  if (dot) {
+    dot.className = 'sync-dot ' + status;
+  }
+  // If user menu is open, refresh it
+  const menu = document.getElementById('userMenu');
+  if (menu && menu.style.display !== 'none') renderUserMenu();
+}
+
+async function loadFromCloud() {
+  if (!sbClient || !currentUser) return null;
+  setSyncStatus('syncing');
+  try {
+    const { data, error } = await sbClient
+      .from(CLOUD_TABLE)
+      .select('data, updated_at')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    setSyncStatus('synced');
+    if (!data) return null;
+    cloudLastSavedAt = data.updated_at;
+    return data.data;
+  } catch (e) {
+    console.error('Load from cloud failed', e);
+    setSyncStatus('error');
+    showToast('雲端載入失敗:' + e.message);
+    return null;
+  }
+}
+
+async function saveToCloud() {
+  if (!sbClient || !currentUser || offlineMode) return;
+  if (cloudSyncInFlight) {
+    // Re-schedule after current write completes
+    if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(saveToCloud, CLOUD_SYNC_DEBOUNCE_MS);
+    return;
+  }
+  cloudSyncInFlight = true;
+  setSyncStatus('syncing');
+  try {
+    const { error } = await sbClient
+      .from(CLOUD_TABLE)
+      .upsert({
+        user_id: currentUser.id,
+        data: state,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+    if (error) throw error;
+    cloudLastSavedAt = new Date().toISOString();
+    setSyncStatus('synced');
+  } catch (e) {
+    console.error('Save to cloud failed', e);
+    setSyncStatus('error');
+    showToast('雲端儲存失敗:' + e.message);
+  } finally {
+    cloudSyncInFlight = false;
+  }
+}
+
+function scheduleCloudSync() {
+  if (!currentUser || offlineMode) return;
+  if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(saveToCloud, CLOUD_SYNC_DEBOUNCE_MS);
+}
+
+const STORAGE_KEY = 'shadow_client_ledger_v1';
+const COLOR_PALETTE = [
+  '#5a7a4a', '#4a6582', '#7a5e9a', '#a07142', '#9a4a4a',
+  '#4a8888', '#8a7a3a', '#7a4a7a', '#5a6a8a', '#6a6a6a'
+];
+
+const DEFAULT_PROJECT_TAGS = [
+  { name: '結案', color: '#5a7a4a' },
+  { name: '製作中', color: '#a07142' },
+  { name: '等待回覆', color: '#4a6582' },
+  { name: '未製作完', color: '#7a5e9a' }
+];
+const DEFAULT_PAYMENT_TAGS = [
+  { name: '已付款', color: '#5a7a4a' },
+  { name: '部分付款', color: '#a07142' },
+  { name: '未付款', color: '#9a4a4a' },
+  { name: '請款中', color: '#4a6582' }
+];
+const DEFAULT_WITHHOLDING_TAGS = [
+  { name: '9A', color: '#a07142' },
+  { name: '9B', color: '#4a8888' },
+  { name: '50', color: '#7a5e9a' }
+];
+// Descriptions used in tax summary view (not editable as part of tag itself)
+const WITHHOLDING_DESC = {
+  '9A': '專門職業所得',
+  '9B': '稿費 / 演講費',
+  '50': '薪資所得'
+};
+
+// Tax standards by income year (per Ministry of Finance official notices)
+// Sources: 財政部 114/11/27 台財稅字第 1140466407 號公告 (115年度)
+//          財政部 113/11/28 公告 (114年度)
+//          財政部 112/11/23 公告 (113年度)
+const TAX_STANDARDS = {
+  '2026': {
+    yearLabel: '115 年度',
+    filingNote: '116 年 5 月申報適用',
+    salary: 227000,        // 薪資所得特別扣除額
+    royalty: 180000,       // 9B 稿費 / 演講費 / 版稅 定額免稅
+    profession9A: 0,       // 9A 無年度免稅 / 扣除額
+    brackets: [
+      { upTo: 610000,  rate: 0.05, qd: 0 },
+      { upTo: 1380000, rate: 0.12, qd: 30500 },
+      { upTo: 2770000, rate: 0.20, qd: 122900 },
+      { upTo: 5190000, rate: 0.30, qd: 400900 },
+      { upTo: Infinity, rate: 0.40, qd: 1126900 }
+    ]
+  },
+  '2025': {
+    yearLabel: '114 年度',
+    filingNote: '115 年 5 月申報適用',
+    salary: 218000,
+    royalty: 180000,
+    profession9A: 0,
+    brackets: [
+      { upTo: 590000,  rate: 0.05, qd: 0 },
+      { upTo: 1330000, rate: 0.12, qd: 29500 },
+      { upTo: 2660000, rate: 0.20, qd: 118300 },
+      { upTo: 4980000, rate: 0.30, qd: 384300 },
+      { upTo: Infinity, rate: 0.40, qd: 1080300 }
+    ]
+  },
+  '2024': {
+    yearLabel: '113 年度',
+    filingNote: '114 年 5 月申報適用',
+    salary: 218000,
+    royalty: 180000,
+    profession9A: 0,
+    brackets: [
+      { upTo: 590000,  rate: 0.05, qd: 0 },
+      { upTo: 1330000, rate: 0.12, qd: 29500 },
+      { upTo: 2660000, rate: 0.20, qd: 118300 },
+      { upTo: 4980000, rate: 0.30, qd: 384300 },
+      { upTo: Infinity, rate: 0.40, qd: 1080300 }
+    ]
+  }
+};
+
+function getTaxStandard(year) {
+  if (TAX_STANDARDS[year]) return TAX_STANDARDS[year];
+  // Future / unknown years — fall back to most recent published standard
+  const fallback = JSON.parse(JSON.stringify(TAX_STANDARDS['2026']));
+  fallback.yearLabel = year + ' 年度';
+  fallback.filingNote = '尚未公告,暫以 115 年度標準試算';
+  fallback.estimated = true;
+  return fallback;
+}
+
+function getDeductionFor(tagName, taxStd) {
+  if (tagName === '9B') return taxStd.royalty;
+  if (tagName === '50') return taxStd.salary;
+  return 0;
+}
+
+function getDeductionLabelFor(tagName, taxStd) {
+  const fmtWan = n => {
+    const w = n / 10000;
+    return (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + ' 萬元';
+  };
+  if (tagName === '9B') return fmtWan(taxStd.royalty) + '免稅額';
+  if (tagName === '50') return fmtWan(taxStd.salary) + '扣除額';
+  return '';
+}
+
+// Compute progressive tax owed given net income
+function computeProgressiveTax(netIncome, brackets) {
+  if (netIncome <= 0) return 0;
+  for (const b of brackets) {
+    if (netIncome <= b.upTo) {
+      return Math.max(0, Math.round(netIncome * b.rate - b.qd));
+    }
+  }
+  return 0;
+}
+
+function bracketsToText(brackets) {
+  const fmtWan = n => {
+    const w = n / 10000;
+    return (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + ' 萬';
+  };
+  const parts = [];
+  let prevUpTo = 0;
+  brackets.forEach((b, i) => {
+    const ratePct = (b.rate * 100).toFixed(0) + '%';
+    if (b.upTo === Infinity) {
+      parts.push(`> ${fmtWan(prevUpTo)}: ${ratePct}`);
+    } else if (i === 0) {
+      parts.push(`≤ ${fmtWan(b.upTo)}: ${ratePct}`);
+    } else {
+      parts.push(`${fmtWan(prevUpTo)}~${fmtWan(b.upTo)}: ${ratePct}`);
+    }
+    prevUpTo = b.upTo;
+  });
+  return parts.join(' / ');
+}
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* =============== STATE =============== */
+let state = loadState();
+let activeYear = state.currentYear;
+let activeMonth = String(new Date().getMonth() + 1);
+let activeView = 'monthly';
+let openTagDropdown = null;
+let openWorkModal = null;
+let yearManageOpen = false;
+
+function defaultState() {
+  const currentYear = String(new Date().getFullYear());
+  const yr = createEmptyYear();
+  return {
+    v: 2,
+    currentYear,
+    years: { [currentYear]: yr },
+    tags: {
+      project: [...DEFAULT_PROJECT_TAGS],
+      payment: [...DEFAULT_PAYMENT_TAGS],
+      withholding: [...DEFAULT_WITHHOLDING_TAGS],
+      client: []
+    },
+    customColumns: [],
+    columnWidths: {}
+  };
+}
+
+const DEFAULT_COL_WIDTHS = {
+  client: 110,
+  income: 110,
+  afterExpense: 110,
+  projectName: 240,
+  projectStatus: 120,
+  paymentStatus: 120,
+  hours: 200,
+  withholding: 100,
+  notes: 220,
+  // Default for any unrecognized / custom column
+  _default: 180
+};
+
+const COL_MIN_WIDTH = 50;
+const COL_MAX_WIDTH = 600;
+
+function getColumnWidth(id) {
+  if (state.columnWidths && state.columnWidths[id]) {
+    return state.columnWidths[id];
+  }
+  return DEFAULT_COL_WIDTHS[id] || DEFAULT_COL_WIDTHS._default;
+}
+
+function setColumnWidth(id, width) {
+  if (!state.columnWidths) state.columnWidths = {};
+  state.columnWidths[id] = Math.max(COL_MIN_WIDTH, Math.min(COL_MAX_WIDTH, Math.round(width)));
+  saveState();
+}
+
+function createEmptyYear() {
+  const yr = {};
+  for (let m = 1; m <= 12; m++) yr[String(m)] = [];
+  return yr;
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if (!parsed.years) return defaultState();
+    if (!parsed.tags) parsed.tags = { project: [...DEFAULT_PROJECT_TAGS], payment: [...DEFAULT_PAYMENT_TAGS], withholding: [...DEFAULT_WITHHOLDING_TAGS], client: [] };
+    if (!parsed.tags.project) parsed.tags.project = [...DEFAULT_PROJECT_TAGS];
+    if (!parsed.tags.payment) parsed.tags.payment = [...DEFAULT_PAYMENT_TAGS];
+    if (!parsed.tags.withholding) parsed.tags.withholding = [...DEFAULT_WITHHOLDING_TAGS];
+    Object.keys(parsed.years).forEach(y => {
+      for (let m = 1; m <= 12; m++) {
+        if (!parsed.years[y][String(m)]) parsed.years[y][String(m)] = [];
+      }
+    });
+
+    // ===== Migration: extract clients from existing data =====
+    if (!parsed.tags.client) {
+      const clientNames = new Set();
+      Object.values(parsed.years).forEach(year => {
+        Object.values(year).forEach(arr => {
+          arr.forEach(p => {
+            if (p.client && typeof p.client === 'string' && p.client.trim()) {
+              clientNames.add(p.client.trim());
+            }
+          });
+        });
+      });
+      parsed.tags.client = Array.from(clientNames).map((name, i) => ({
+        name,
+        color: COLOR_PALETTE[i % COLOR_PALETTE.length]
+      }));
+    }
+
+    // ===== Migration: videoLength → custom column =====
+    if (!parsed.customColumns) {
+      parsed.customColumns = [];
+      let hasVideoLength = false;
+      Object.values(parsed.years).forEach(year => {
+        Object.values(year).forEach(arr => {
+          arr.forEach(p => {
+            if (p.videoLength && String(p.videoLength).trim()) hasVideoLength = true;
+          });
+        });
+      });
+      if (hasVideoLength) {
+        const colId = 'col_videolen_' + Date.now().toString(36);
+        parsed.customColumns.push({ id: colId, name: '影片總長' });
+        Object.values(parsed.years).forEach(year => {
+          Object.values(year).forEach(arr => {
+            arr.forEach(p => {
+              if (!p.custom) p.custom = {};
+              if (p.videoLength) {
+                p.custom[colId] = p.videoLength;
+                delete p.videoLength;
+              }
+            });
+          });
+        });
+      }
+    }
+
+    // Ensure every project has a custom field
+    Object.values(parsed.years).forEach(year => {
+      Object.values(year).forEach(arr => {
+        arr.forEach(p => { if (!p.custom) p.custom = {}; });
+      });
+    });
+
+    // Ensure column widths object exists
+    if (!parsed.columnWidths) parsed.columnWidths = {};
+
+    return parsed;
+  } catch (e) {
+    console.error('Load failed', e);
+    return defaultState();
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    showToast('儲存失敗:' + e.message);
+  }
+  // Schedule auto-backup (debounced) and refresh badge
+  scheduleAutoBackup();
+  if (typeof updateBackupBadge === 'function') updateBackupBadge();
+  // Schedule cloud sync (debounced)
+  scheduleCloudSync();
+}
+
+/* =============== BACKUP & AUTO-BACKUP =============== */
+const BACKUP_META_KEY = 'shadow_ledger_backup_meta';
+const AUTO_BACKUP_DEBOUNCE_MS = 8000; // 8 seconds after last change
+
+let autoBackupHandle = null;     // FileSystemDirectoryHandle (if active)
+let autoBackupTimer = null;
+let autoBackupInFlight = false;
+
+function backupMeta() {
+  try {
+    const raw = localStorage.getItem(BACKUP_META_KEY);
+    if (!raw) return { lastManualBackup: null, lastAutoBackup: null };
+    return JSON.parse(raw);
+  } catch (e) { return { lastManualBackup: null, lastAutoBackup: null }; }
+}
+
+function setBackupMeta(updates) {
+  const meta = backupMeta();
+  Object.assign(meta, updates);
+  try { localStorage.setItem(BACKUP_META_KEY, JSON.stringify(meta)); } catch (e) {}
+}
+
+function getLastBackupTime() {
+  const meta = backupMeta();
+  const times = [meta.lastManualBackup, meta.lastAutoBackup].filter(Boolean);
+  if (times.length === 0) return null;
+  return Math.max(...times);
+}
+
+function daysSinceLastBackup() {
+  const last = getLastBackupTime();
+  if (!last) return Infinity;
+  return (Date.now() - last) / 86400000;
+}
+
+function updateBackupBadge() {
+  const badge = document.getElementById('backupBadge');
+  if (!badge) return;
+
+  // Auto-backup active state
+  if (autoBackupHandle) {
+    const meta = backupMeta();
+    const minsAgo = meta.lastAutoBackup
+      ? Math.round((Date.now() - meta.lastAutoBackup) / 60000)
+      : null;
+    const label = minsAgo == null ? '自動備份中' :
+      minsAgo < 1 ? '剛剛已備份' :
+      minsAgo < 60 ? `${minsAgo} 分鐘前備份` :
+      `${Math.floor(minsAgo/60)} 小時前備份`;
+    badge.className = 'backup-badge auto';
+    badge.innerHTML = `<span class="dot"></span><span>${label}</span>`;
+    badge.title = '自動備份運作中 · 點擊立即匯出 .json';
+    return;
+  }
+
+  const last = getLastBackupTime();
+  const days = daysSinceLastBackup();
+
+  if (last == null) {
+    badge.className = 'backup-badge warn';
+    badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><circle cx="12" cy="12" r="10"></circle></svg><span>尚未備份過</span>`;
+    badge.title = '尚未備份過,點擊匯出 .json';
+  } else if (days >= 14) {
+    badge.className = 'backup-badge danger';
+    badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><span>${Math.floor(days)} 天未備份</span>`;
+    badge.title = '已超過 14 天未備份,建議立即匯出 .json';
+  } else if (days >= 7) {
+    badge.className = 'backup-badge warn';
+    badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><span>${Math.floor(days)} 天未備份</span>`;
+    badge.title = '已超過 7 天未備份,建議匯出 .json';
+  } else {
+    badge.className = 'backup-badge';
+    const label = days < 1 ? '今日已備份' :
+      days < 2 ? '昨日已備份' :
+      `${Math.floor(days)} 天前備份`;
+    badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><span>${label}</span>`;
+    badge.title = '上次備份在 ' + new Date(last).toLocaleString('zh-TW') + ' · 點擊重新匯出';
+  }
+}
+
+function supportsFileSystemAccess() {
+  return typeof window.showDirectoryPicker === 'function';
+}
+
+async function enableAutoBackup() {
+  if (!supportsFileSystemAccess()) {
+    showToast('此瀏覽器不支援自動備份,請改用手動匯出');
+    return;
+  }
+  try {
+    const dirHandle = await window.showDirectoryPicker({
+      mode: 'readwrite',
+      startIn: 'documents'
+    });
+    // Test write permission
+    const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      const req = await dirHandle.requestPermission({ mode: 'readwrite' });
+      if (req !== 'granted') {
+        showToast('未取得資料夾寫入權限');
+        return;
+      }
+    }
+    autoBackupHandle = dirHandle;
+    setBackupMeta({ autoBackupFolderName: dirHandle.name, autoBackupEnabledAt: Date.now() });
+    showToast(`已啟用自動備份 · ${dirHandle.name}`);
+    updateAutoBackupUI();
+    updateBackupBadge();
+    // Immediate first backup
+    await performAutoBackup();
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      showToast('啟用失敗:' + err.message);
+    }
+  }
+}
+
+function disableAutoBackup() {
+  autoBackupHandle = null;
+  if (autoBackupTimer) { clearTimeout(autoBackupTimer); autoBackupTimer = null; }
+  setBackupMeta({ autoBackupFolderName: null });
+  showToast('已停用自動備份');
+  updateAutoBackupUI();
+  updateBackupBadge();
+}
+
+function scheduleAutoBackup() {
+  if (!autoBackupHandle) return;
+  if (autoBackupTimer) clearTimeout(autoBackupTimer);
+  autoBackupTimer = setTimeout(() => {
+    performAutoBackup();
+  }, AUTO_BACKUP_DEBOUNCE_MS);
+}
+
+async function performAutoBackup() {
+  if (!autoBackupHandle || autoBackupInFlight) return;
+  autoBackupInFlight = true;
+  try {
+    // Verify permission still valid
+    const perm = await autoBackupHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      const req = await autoBackupHandle.requestPermission({ mode: 'readwrite' });
+      if (req !== 'granted') {
+        autoBackupHandle = null;
+        updateAutoBackupUI();
+        updateBackupBadge();
+        showToast('資料夾權限已失效,自動備份停用');
+        return;
+      }
+    }
+    // Write to a single "latest" file (overwrite each time)
+    const fileHandle = await autoBackupHandle.getFileHandle('客戶接案管理_自動備份.json', { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(state, null, 2));
+    await writable.close();
+    setBackupMeta({ lastAutoBackup: Date.now() });
+    updateAutoBackupUI();
+    updateBackupBadge();
+  } catch (err) {
+    console.error('Auto backup failed', err);
+    showToast('自動備份失敗:' + err.message);
+  } finally {
+    autoBackupInFlight = false;
+  }
+}
+
+function updateAutoBackupUI() {
+  // Re-render the dropdown menu if it's open
+  const menu = document.getElementById('backupMenu');
+  if (menu && menu.style.display !== 'none') renderBackupMenu();
+}
+
+function renderBackupMenu() {
+  const menu = document.getElementById('backupMenu');
+  if (!menu) return;
+  const metaInfo = backupMeta();
+  const manualTs = metaInfo.lastManualBackup
+    ? new Date(metaInfo.lastManualBackup).toLocaleString('zh-TW', { hour12: false })
+    : '從未';
+  const autoTs = metaInfo.lastAutoBackup
+    ? new Date(metaInfo.lastAutoBackup).toLocaleString('zh-TW', { hour12: false })
+    : '從未';
+
+  let html = `
+    <div class="backup-menu-header">備份狀態</div>
+    <div class="backup-menu-info">
+      上次手動匯出:<span class="ts">${escapeHtml(manualTs)}</span><br>
+      上次自動備份:<span class="ts ${autoBackupHandle ? 'auto-on' : ''}">${escapeHtml(autoTs)}</span>
+    </div>
+    <div class="backup-menu-divider"></div>
+    <div class="backup-menu-item" data-action="export">
+      <span>📥</span><span>立即匯出 .json (有日期戳)</span>
+    </div>
+  `;
+
+  if (supportsFileSystemAccess()) {
+    if (autoBackupHandle) {
+      html += `
+        <div class="backup-menu-status">
+          <span class="dot"></span>
+          <span>自動備份中 · 📁 ${escapeHtml(autoBackupHandle.name)}</span>
+        </div>
+        <div class="backup-menu-item danger" data-action="disable">
+          <span>⏹</span><span>停用自動備份</span>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="backup-menu-item accent" data-action="enable">
+          <span>📁</span><span>啟用自動備份 (選擇資料夾)</span>
+        </div>
+      `;
+    }
+  } else {
+    html += `
+      <div class="backup-menu-unsupported">
+        此瀏覽器不支援自動備份功能<br>
+        <span style="font-size:10px">(Chrome / Edge / Opera 才支援)</span>
+      </div>
+    `;
+  }
+
+  menu.innerHTML = html;
+
+  // Wire up clicks
+  menu.querySelectorAll('.backup-menu-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const action = el.dataset.action;
+      if (action === 'export') { exportData(); closeBackupMenu(); }
+      else if (action === 'enable') { enableAutoBackup(); /* don't close — enableAutoBackup re-renders */ }
+      else if (action === 'disable') { disableAutoBackup(); closeBackupMenu(); }
+    });
+  });
+}
+
+function openBackupMenu() {
+  const menu = document.getElementById('backupMenu');
+  if (!menu) return;
+  renderBackupMenu();
+  menu.style.display = '';
+  // Close on outside click
+  setTimeout(() => {
+    const closer = (e) => {
+      const badge = document.getElementById('backupBadge');
+      if (!menu.contains(e.target) && e.target !== badge && !badge.contains(e.target)) {
+        closeBackupMenu();
+        document.removeEventListener('mousedown', closer);
+      }
+    };
+    document.addEventListener('mousedown', closer);
+  }, 0);
+}
+
+function closeBackupMenu() {
+  const menu = document.getElementById('backupMenu');
+  if (menu) menu.style.display = 'none';
+}
+
+function toggleBackupMenu() {
+  const menu = document.getElementById('backupMenu');
+  if (!menu) return;
+  if (menu.style.display === 'none') openBackupMenu();
+  else closeBackupMenu();
+}
+
+/* =============== UTILS =============== */
+function uid() {
+  return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function emptyProject() {
+  return {
+    id: uid(),
+    client: '',
+    income: '',
+    afterExpense: '',
+    projectName: '',
+    projectStatus: null,
+    paymentStatus: null,
+    workEntries: [],
+    withholding: null,
+    notes: '',
+    custom: {}
+  };
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function fmtNum(n) {
+  if (n === '' || n == null || isNaN(n)) return '';
+  return Number(n).toLocaleString('zh-TW');
+}
+
+function totalHours(p) {
+  return (p.workEntries || []).reduce((s, e) => s + (e.hours || 0), 0);
+}
+
+function fmtHours(h) {
+  if (!h) return '0';
+  return h % 1 === 0 ? String(h) : h.toFixed(1);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+function findTag(kind, name) {
+  if (!name) return null;
+  return state.tags[kind].find(t => t.name === name);
+}
+
+function getCurrentMonthArr() {
+  if (!state.years[activeYear]) state.years[activeYear] = createEmptyYear();
+  if (!state.years[activeYear][activeMonth]) state.years[activeYear][activeMonth] = [];
+  return state.years[activeYear][activeMonth];
+}
+
+/* =============== YEAR PICKER =============== */
+function renderYearSelect() {
+  const sel = document.getElementById('yearSelect');
+  sel.innerHTML = '';
+  const years = Object.keys(state.years).sort((a,b) => b.localeCompare(a));
+  years.forEach(y => {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if (y === activeYear) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function renderYearManage() {
+  const dropdown = document.getElementById('yearManage');
+  dropdown.innerHTML = '';
+  const years = Object.keys(state.years).sort((a,b) => b.localeCompare(a));
+  years.forEach(y => {
+    const item = document.createElement('div');
+    item.className = 'year-manage-item' + (y === activeYear ? ' current' : '');
+    item.innerHTML = `<span>${y}</span>`;
+    const del = document.createElement('button');
+    del.className = 'delete';
+    del.textContent = '✕';
+    del.title = '刪除此年度';
+    del.onclick = (ev) => {
+      ev.stopPropagation();
+      if (years.length <= 1) { showToast('至少保留一個年度'); return; }
+      if (!confirm(`確定要刪除 ${y} 年度的所有資料？此動作無法復原。`)) return;
+      delete state.years[y];
+      if (activeYear === y) {
+        activeYear = Object.keys(state.years).sort((a,b) => b.localeCompare(a))[0];
+        state.currentYear = activeYear;
+      }
+      saveState();
+      renderAll();
+      showToast('已刪除 ' + y + ' 年');
+    };
+    item.appendChild(del);
+    item.onclick = () => {
+      activeYear = y;
+      state.currentYear = y;
+      saveState();
+      yearManageOpen = false;
+      dropdown.classList.remove('show');
+      renderAll();
+    };
+    dropdown.appendChild(item);
+  });
+
+  const div = document.createElement('div');
+  div.className = 'year-manage-divider';
+  dropdown.appendChild(div);
+
+  const addRow = document.createElement('div');
+  addRow.className = 'year-manage-add';
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.placeholder = '新年度 e.g. 2027';
+  inp.maxLength = 4;
+  const btn = document.createElement('button');
+  btn.className = 'tag-add-btn';
+  btn.textContent = '新增';
+  const doAdd = () => {
+    const v = inp.value.trim();
+    if (!/^\d{4}$/.test(v)) { showToast('請輸入 4 位數年份'); return; }
+    if (state.years[v]) { showToast('該年度已存在'); return; }
+    state.years[v] = createEmptyYear();
+    activeYear = v;
+    state.currentYear = v;
+    saveState();
+    yearManageOpen = false;
+    dropdown.classList.remove('show');
+    renderAll();
+    showToast('已新增 ' + v + ' 年度');
+  };
+  btn.onclick = doAdd;
+  inp.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+  addRow.appendChild(inp);
+  addRow.appendChild(btn);
+  dropdown.appendChild(addRow);
+}
+
+/* =============== MONTH TABS =============== */
+function renderMonthTabs() {
+  const wrap = document.getElementById('monthTabs');
+  wrap.innerHTML = '';
+  for (let m = 1; m <= 12; m++) {
+    const btn = document.createElement('button');
+    btn.className = 'month-tab' + (String(m) === activeMonth ? ' active' : '');
+    btn.innerHTML = `<span>${MONTH_NAMES[m-1]}</span>`;
+    btn.onclick = () => { activeMonth = String(m); renderMonthly(); };
+    wrap.appendChild(btn);
+  }
+}
+
+/* =============== MONTHLY VIEW =============== */
+function renderMonthly() {
+  renderMonthTabs();
+  const arr = getCurrentMonthArr();
+  const container = document.getElementById('monthContent');
+  container.innerHTML = '';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'table-wrap';
+
+  const scroll = document.createElement('div');
+  scroll.className = 'table-scroll';
+
+  const table = document.createElement('table');
+  table.className = 'projects';
+
+  // Build header
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+
+  // Empty handle column (for move-row buttons)
+  const handleTh = document.createElement('th');
+  handleTh.className = 'col-handle';
+  headRow.appendChild(handleTh);
+
+  const fixedHeaders = [
+    { id: 'client',         label: '客戶', cls: 'col-client' },
+    { id: 'income',         label: '收入', cls: 'col-num', style: 'text-align:right' },
+    { id: 'afterExpense',   label: '淨利', cls: 'col-num', style: 'text-align:right' },
+    { id: 'projectName',    label: '專案', cls: 'col-project' },
+    { id: 'projectStatus',  label: '專案狀態', cls: 'col-status' },
+    { id: 'paymentStatus',  label: '付款狀態', cls: 'col-payment' },
+    { id: 'hours',          label: '工時', cls: 'col-hours' },
+    { id: 'withholding',    label: '扣繳類別', cls: 'col-withholding' },
+    { id: 'notes',          label: '備註', cls: 'col-notes' }
+  ];
+  fixedHeaders.forEach(h => {
+    const th = document.createElement('th');
+    th.className = h.cls;
+    th.style.width = getColumnWidth(h.id) + 'px';
+    if (h.style) th.style.cssText += ';' + h.style;
+    th.textContent = h.label;
+    th.appendChild(makeResizeHandle(h.id));
+    headRow.appendChild(th);
+  });
+
+  // Custom column headers
+  state.customColumns.forEach(col => {
+    headRow.appendChild(renderCustomColHeader(col));
+  });
+
+  // + add column header
+  const addColTh = document.createElement('th');
+  addColTh.className = 'col-add';
+  addColTh.style.position = 'relative';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-col-btn';
+  addBtn.textContent = '+';
+  addBtn.title = '新增欄位';
+  addBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    openAddColumnPopup(addColTh);
+  };
+  addColTh.appendChild(addBtn);
+  headRow.appendChild(addColTh);
+
+  // Actions column
+  const actTh = document.createElement('th');
+  actTh.className = 'col-actions';
+  headRow.appendChild(actTh);
+
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  const totalCols = fixedHeaders.length + state.customColumns.length + 3;
+
+  if (arr.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="${totalCols}">
+      <div class="empty-state">
+        <div class="empty-state-icon">✦</div>
+        <div class="empty-state-title">${MONTH_NAMES[parseInt(activeMonth)-1]} · ${activeYear}</div>
+        <div class="empty-state-desc">本月還沒有專案,按下方「新增專案」開始記錄</div>
+      </div>
+    </td>`;
+    tbody.appendChild(tr);
+  } else {
+    arr.forEach((p, idx) => tbody.appendChild(renderRow(p, idx)));
+  }
+  table.appendChild(tbody);
+
+  // Set min-width based on column count
+  table.style.minWidth = (1132 + state.customColumns.length * 160) + 'px';
+
+  scroll.appendChild(table);
+  wrap.appendChild(scroll);
+
+  // Add row button
+  const addRowBtn = document.createElement('button');
+  addRowBtn.className = 'add-row-btn';
+  addRowBtn.textContent = '+ 新增專案';
+  addRowBtn.onclick = () => {
+    arr.push(emptyProject());
+    saveState();
+    renderMonthly();
+  };
+  wrap.appendChild(addRowBtn);
+
+  // Footer with totals
+  const footer = document.createElement('div');
+  footer.className = 'table-footer';
+  const totalIncome = arr.reduce((s, p) => s + (Number(p.income) || 0), 0);
+  const totalAfter = arr.reduce((s, p) => s + (Number(p.afterExpense) || 0), 0);
+  const totalHrs = arr.reduce((s, p) => s + totalHours(p), 0);
+  footer.innerHTML = `
+    <div class="totals">
+      <div class="total-item">
+        <span class="total-label">總收入</span>
+        <span class="total-value accent">NT$ ${fmtNum(totalIncome)}</span>
+      </div>
+      <div class="total-item">
+        <span class="total-label">淨利</span>
+        <span class="total-value">NT$ ${fmtNum(totalAfter)}</span>
+      </div>
+      <div class="total-item">
+        <span class="total-label">總工時</span>
+        <span class="total-value">${fmtHours(totalHrs)} h</span>
+      </div>
+    </div>
+  `;
+  wrap.appendChild(footer);
+
+  container.appendChild(wrap);
+}
+
+/* =============== CUSTOM COLUMNS =============== */
+function renderCustomColHeader(col) {
+  const th = document.createElement('th');
+  th.className = 'col-custom col-header-custom';
+  th.style.width = getColumnWidth(col.id) + 'px';
+  th.style.minWidth = COL_MIN_WIDTH + 'px';
+  th.style.maxWidth = 'none';
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'col-header-custom-name';
+  inp.value = col.name;
+  inp.placeholder = '欄位名稱…';
+  inp.onchange = () => {
+    const v = inp.value.trim();
+    if (!v) { inp.value = col.name; return; }
+    col.name = v;
+    saveState();
+  };
+  inp.onblur = inp.onchange;
+  th.appendChild(inp);
+
+  const del = document.createElement('button');
+  del.className = 'col-header-delete';
+  del.textContent = '✕';
+  del.title = '刪除此欄位';
+  del.onclick = (ev) => {
+    ev.stopPropagation();
+    if (!confirm(`刪除欄位「${col.name}」?所有此欄位的內容會一併消失。`)) return;
+    state.customColumns = state.customColumns.filter(c => c.id !== col.id);
+    // Clean up data and saved width
+    Object.values(state.years).forEach(year => {
+      Object.values(year).forEach(arr => {
+        arr.forEach(p => {
+          if (p.custom) delete p.custom[col.id];
+        });
+      });
+    });
+    if (state.columnWidths) delete state.columnWidths[col.id];
+    saveState();
+    renderMonthly();
+  };
+  th.appendChild(del);
+  th.appendChild(makeResizeHandle(col.id));
+  return th;
+}
+
+/* =============== COLUMN RESIZING =============== */
+function makeResizeHandle(columnId) {
+  const handle = document.createElement('span');
+  handle.className = 'col-resize-handle';
+  handle.title = '拖曳調整欄寬 · 雙擊還原預設';
+
+  // Double-click to reset to default
+  handle.ondblclick = (e) => {
+    e.stopPropagation();
+    if (state.columnWidths) delete state.columnWidths[columnId];
+    saveState();
+    renderMonthly();
+    showToast('已還原欄寬');
+  };
+
+  const onPointerDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const th = handle.parentElement;
+    if (!th) return;
+
+    const startX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0].clientX);
+    const startWidth = th.offsetWidth;
+
+    handle.classList.add('dragging');
+    document.body.classList.add('col-resizing');
+
+    const onMove = (ev) => {
+      const x = ev.clientX !== undefined ? ev.clientX : (ev.touches && ev.touches[0].clientX);
+      if (x == null) return;
+      const delta = x - startX;
+      const newWidth = Math.max(COL_MIN_WIDTH, Math.min(COL_MAX_WIDTH, startWidth + delta));
+      th.style.width = newWidth + 'px';
+    };
+
+    const onUp = () => {
+      const finalWidth = th.offsetWidth;
+      setColumnWidth(columnId, finalWidth);
+      handle.classList.remove('dragging');
+      document.body.classList.remove('col-resizing');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+  };
+
+  handle.addEventListener('mousedown', onPointerDown);
+  handle.addEventListener('touchstart', onPointerDown, { passive: false });
+  return handle;
+}
+
+function openAddColumnPopup(anchor) {
+  // Close any existing popup
+  const existing = document.querySelector('.add-col-popup');
+  if (existing) { existing.remove(); return; }
+
+  const popup = document.createElement('div');
+  popup.className = 'add-col-popup';
+  popup.style.position = 'fixed';
+  popup.onclick = (e) => e.stopPropagation();
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.placeholder = '新欄位名稱…';
+  inp.maxLength = 20;
+
+  const btn = document.createElement('button');
+  btn.className = 'tag-add-btn';
+  btn.textContent = '新增';
+
+  const doAdd = () => {
+    const name = inp.value.trim();
+    if (!name) { inp.focus({ preventScroll: true }); return; }
+    const id = 'col_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    state.customColumns.push({ id, name });
+    saveState();
+    popup.remove();
+    renderMonthly();
+    showToast('已新增欄位「' + name + '」');
+  };
+
+  btn.onclick = doAdd;
+  inp.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+
+  popup.appendChild(inp);
+  popup.appendChild(btn);
+  document.body.appendChild(popup);
+
+  // Position relative to the button (fixed positioning)
+  const rect = anchor.getBoundingClientRect();
+  popup.style.top = (rect.bottom + 6) + 'px';
+  popup.style.right = Math.max(12, window.innerWidth - rect.right) + 'px';
+
+  setTimeout(() => inp.focus({ preventScroll: true }), 50);
+
+  // Close on outside click
+  setTimeout(() => {
+    const closer = (e) => {
+      if (!popup.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) {
+        popup.remove();
+        document.removeEventListener('click', closer);
+      }
+    };
+    document.addEventListener('click', closer);
+  }, 0);
+}
+
+function customCellInput(p, col) {
+  const ta = document.createElement('textarea');
+  ta.className = 'cell-input';
+  if (!p.custom) p.custom = {};
+  ta.value = p.custom[col.id] || '';
+  ta.placeholder = '…';
+  ta.rows = 1;
+  const autoresize = () => {
+    ta.style.height = 'auto';
+    ta.style.height = (ta.scrollHeight + 2) + 'px';
+  };
+  ta.oninput = () => {
+    if (!p.custom) p.custom = {};
+    p.custom[col.id] = ta.value;
+    saveState();
+    autoresize();
+  };
+  setTimeout(autoresize, 0);
+  return ta;
+}
+
+function renderRow(p, idx) {
+  const tr = document.createElement('tr');
+  tr.dataset.id = p.id;
+  tr.dataset.idx = idx;
+
+  // Right-click context menu on the entire row
+  tr.addEventListener('contextmenu', (ev) => {
+    // Allow native menu inside text inputs / textareas (so user can still copy/paste text)
+    const target = ev.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+      // If they actually have selection or are focused on input, defer to native
+      if (target === document.activeElement) return;
+    }
+    ev.preventDefault();
+    openRowContextMenu(p, ev.clientX, ev.clientY);
+  });
+
+  // Move handle (left side)
+  const tdHandle = document.createElement('td');
+  tdHandle.className = 'row-handle';
+
+  const handleGroup = document.createElement('div');
+  handleGroup.className = 'row-handle-group';
+
+  // Drag handle — grip icon
+  const dragHandle = document.createElement('button');
+  dragHandle.className = 'row-drag-handle';
+  dragHandle.title = '按住拖曳以重新排序';
+  dragHandle.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>`;
+  attachDragHandlers(dragHandle, tr, p);
+  handleGroup.appendChild(dragHandle);
+
+  // Cross-month/year move button
+  const moveBtn = document.createElement('button');
+  moveBtn.className = 'row-move';
+  moveBtn.title = '移到其他月份';
+  moveBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 15 12 20 17 15"></polyline><polyline points="7 9 12 4 17 9"></polyline></svg>`;
+  moveBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    openMoveMonthPopup(p, moveBtn);
+  };
+  handleGroup.appendChild(moveBtn);
+
+  tdHandle.appendChild(handleGroup);
+  tr.appendChild(tdHandle);
+
+  // Client (now tag-mode)
+  const tdClient = document.createElement('td');
+  tdClient.appendChild(tagCell(p, 'client', 'client'));
+  tr.appendChild(tdClient);
+
+  // Income
+  const tdIncome = document.createElement('td');
+  tdIncome.appendChild(numInput(p, 'income'));
+  tr.appendChild(tdIncome);
+
+  // After expense
+  const tdAfter = document.createElement('td');
+  tdAfter.appendChild(numInput(p, 'afterExpense'));
+  tr.appendChild(tdAfter);
+
+  // Project name
+  const tdProj = document.createElement('td');
+  tdProj.appendChild(textareaInput(p, 'projectName', '專案名稱…'));
+  tr.appendChild(tdProj);
+
+  // Project status
+  const tdStatus = document.createElement('td');
+  tdStatus.appendChild(tagCell(p, 'projectStatus', 'project'));
+  tr.appendChild(tdStatus);
+
+  // Payment status
+  const tdPay = document.createElement('td');
+  tdPay.appendChild(tagCell(p, 'paymentStatus', 'payment'));
+  tr.appendChild(tdPay);
+
+  // Hours
+  const tdHours = document.createElement('td');
+  tdHours.appendChild(hoursCell(p));
+  tr.appendChild(tdHours);
+
+  // Withholding (扣繳類別)
+  const tdWh = document.createElement('td');
+  tdWh.appendChild(tagCell(p, 'withholding', 'withholding'));
+  tr.appendChild(tdWh);
+
+  // Notes
+  const tdNotes = document.createElement('td');
+  tdNotes.appendChild(textareaInput(p, 'notes', '備註…'));
+  tr.appendChild(tdNotes);
+
+  // Custom columns
+  state.customColumns.forEach(col => {
+    const td = document.createElement('td');
+    td.appendChild(customCellInput(p, col));
+    tr.appendChild(td);
+  });
+
+  // Empty cell under the "+" add column header
+  const tdEmpty = document.createElement('td');
+  tr.appendChild(tdEmpty);
+
+  // Delete action
+  const tdAct = document.createElement('td');
+  tdAct.className = 'row-actions';
+  const del = document.createElement('button');
+  del.className = 'row-delete';
+  del.title = '刪除此列';
+  del.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
+  del.onclick = () => {
+    if (!confirm('確定要刪除這一列?')) return;
+    const arr = getCurrentMonthArr();
+    const i = arr.findIndex(x => x.id === p.id);
+    if (i >= 0) {
+      arr.splice(i, 1);
+      saveState();
+      renderMonthly();
+    }
+  };
+  tdAct.appendChild(del);
+  tr.appendChild(tdAct);
+
+  return tr;
+}
+
+function textInput(p, field, placeholder) {
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'cell-input';
+  inp.value = p[field] || '';
+  inp.placeholder = placeholder;
+  inp.oninput = () => { p[field] = inp.value; saveState(); };
+  return inp;
+}
+
+/* =============== REORDER ROW WITHIN MONTH =============== */
+function reorderRow(p, direction) {
+  const arr = getCurrentMonthArr();
+  const i = arr.findIndex(x => x.id === p.id);
+  if (i < 0) return;
+  const newIdx = i + direction;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  [arr[i], arr[newIdx]] = [arr[newIdx], arr[i]];
+  saveState();
+  renderMonthly();
+}
+
+/* =============== DRAG-AND-DROP ROW REORDER =============== */
+let dragState = null;
+
+function attachDragHandlers(handle, row, p) {
+  const onPointerDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0].clientX);
+    const startY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0].clientY);
+
+    let started = false;
+
+    const startDrag = () => {
+      started = true;
+      const tbody = row.parentElement;
+      if (!tbody) return;
+      dragState = {
+        row,
+        p,
+        tbody,
+        insertBeforeId: null
+      };
+      row.classList.add('dragging');
+      document.body.classList.add('row-dragging');
+    };
+
+    const onMove = (ev) => {
+      const x = ev.clientX !== undefined ? ev.clientX : (ev.touches && ev.touches[0].clientX);
+      const y = ev.clientY !== undefined ? ev.clientY : (ev.touches && ev.touches[0].clientY);
+      if (x == null || y == null) return;
+
+      // Threshold to start drag (avoid accidental drag on simple click)
+      if (!started) {
+        if (Math.abs(x - startX) > 4 || Math.abs(y - startY) > 4) {
+          startDrag();
+        } else {
+          return;
+        }
+      }
+      if (!dragState) return;
+      ev.preventDefault();
+
+      // Find which row we're hovering over
+      const rows = Array.from(dragState.tbody.children).filter(r =>
+        !r.classList.contains('drop-indicator-row') && !r.classList.contains('dragging')
+      );
+
+      // Remove existing indicator
+      const existing = dragState.tbody.querySelector('.drop-indicator-row');
+      if (existing) existing.remove();
+
+      let insertBeforeEl = null;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const rect = r.getBoundingClientRect();
+        if (y < rect.top + rect.height / 2) {
+          insertBeforeEl = r;
+          break;
+        }
+      }
+
+      // Build indicator row
+      const colCount = row.children.length;
+      const indRow = document.createElement('tr');
+      indRow.className = 'drop-indicator-row';
+      const indTd = document.createElement('td');
+      indTd.colSpan = colCount;
+      const indDiv = document.createElement('div');
+      indDiv.className = 'drop-indicator';
+      indTd.appendChild(indDiv);
+      indRow.appendChild(indTd);
+
+      if (insertBeforeEl) {
+        dragState.tbody.insertBefore(indRow, insertBeforeEl);
+      } else {
+        dragState.tbody.appendChild(indRow);
+      }
+
+      // Store the id of the row to insert before (or null = append to end)
+      dragState.insertBeforeId = insertBeforeEl ? insertBeforeEl.dataset.id : null;
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+
+      if (!started || !dragState) {
+        dragState = null;
+        return;
+      }
+
+      const { tbody, p: draggedP, insertBeforeId } = dragState;
+      tbody.querySelectorAll('.drop-indicator-row').forEach(r => r.remove());
+      row.classList.remove('dragging');
+      document.body.classList.remove('row-dragging');
+
+      // Compute new index in the data array — use IDs not indices
+      const arr = getCurrentMonthArr();
+      const dataIdx = arr.findIndex(x => x.id === draggedP.id);
+      if (dataIdx >= 0) {
+        // Remove from old position first
+        const [moved] = arr.splice(dataIdx, 1);
+        // Find target insert position by id
+        let insertAt;
+        if (insertBeforeId === null) {
+          insertAt = arr.length; // append
+        } else {
+          insertAt = arr.findIndex(x => x.id === insertBeforeId);
+          if (insertAt < 0) insertAt = arr.length;
+        }
+        arr.splice(insertAt, 0, moved);
+        saveState();
+      }
+      dragState = null;
+      renderMonthly();
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+  };
+
+  handle.addEventListener('mousedown', onPointerDown);
+  handle.addEventListener('touchstart', onPointerDown, { passive: false });
+}
+
+/* =============== ROW CONTEXT MENU =============== */
+function deepCloneProject(src) {
+  // Generate new ID and timestamp on entries; keep all fields
+  return {
+    id: uid(),
+    client: src.client || '',
+    income: src.income !== undefined ? src.income : '',
+    afterExpense: src.afterExpense !== undefined ? src.afterExpense : '',
+    projectName: src.projectName || '',
+    projectStatus: src.projectStatus || null,
+    paymentStatus: src.paymentStatus || null,
+    workEntries: [], // Don't carry over time entries — those are case-specific
+    withholding: src.withholding || null,
+    notes: src.notes || '',
+    custom: src.custom ? { ...src.custom } : {}
+  };
+}
+
+function duplicateProjectRow(p) {
+  const arr = getCurrentMonthArr();
+  const i = arr.findIndex(x => x.id === p.id);
+  if (i < 0) return;
+  const dup = deepCloneProject(p);
+  arr.splice(i + 1, 0, dup);
+  saveState();
+  renderMonthly();
+  showToast('已複製此列');
+}
+
+function insertEmptyRowBelow(p) {
+  const arr = getCurrentMonthArr();
+  const i = arr.findIndex(x => x.id === p.id);
+  if (i < 0) return;
+  arr.splice(i + 1, 0, emptyProject());
+  saveState();
+  renderMonthly();
+}
+
+function deleteProjectRow(p) {
+  if (!confirm('確定要刪除這一列?')) return;
+  const arr = getCurrentMonthArr();
+  const i = arr.findIndex(x => x.id === p.id);
+  if (i >= 0) {
+    arr.splice(i, 1);
+    saveState();
+    renderMonthly();
+  }
+}
+
+function openRowContextMenu(p, x, y) {
+  // Close any existing menu
+  const existing = document.querySelector('.context-menu');
+  if (existing) existing.remove();
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+
+  const items = [
+    {
+      label: '複製此列',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>',
+      action: () => duplicateProjectRow(p)
+    },
+    {
+      label: '在下方插入空白列',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
+      action: () => insertEmptyRowBelow(p)
+    },
+    {
+      label: '移到其他月份',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+      action: () => {
+        // Find the move button in the row to anchor the popup
+        const tr = document.querySelector(`tr[data-id="${p.id}"]`);
+        const moveBtn = tr ? tr.querySelector('.row-move') : null;
+        if (moveBtn) openMoveMonthPopup(p, moveBtn);
+      }
+    },
+    { divider: true },
+    {
+      label: '刪除此列',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path></svg>',
+      danger: true,
+      action: () => deleteProjectRow(p)
+    }
+  ];
+
+  items.forEach(it => {
+    if (it.divider) {
+      const d = document.createElement('div');
+      d.className = 'context-menu-divider';
+      menu.appendChild(d);
+      return;
+    }
+    const item = document.createElement('div');
+    item.className = 'context-menu-item' + (it.danger ? ' danger' : '');
+    item.innerHTML = `${it.icon}<span>${escapeHtml(it.label)}</span>`;
+    item.onclick = () => {
+      menu.remove();
+      it.action();
+    };
+    menu.appendChild(item);
+  });
+
+  document.body.appendChild(menu);
+
+  // Position
+  const menuRect = menu.getBoundingClientRect();
+  let posX = x;
+  let posY = y;
+  if (posX + menuRect.width > window.innerWidth - 8) posX = window.innerWidth - menuRect.width - 8;
+  if (posY + menuRect.height > window.innerHeight - 8) posY = window.innerHeight - menuRect.height - 8;
+  menu.style.left = Math.max(8, posX) + 'px';
+  menu.style.top = Math.max(8, posY) + 'px';
+
+  // Close handlers
+  const closer = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove();
+      document.removeEventListener('mousedown', closer);
+      document.removeEventListener('contextmenu', closeOnSecondCM);
+      window.removeEventListener('blur', menuRemove);
+      window.removeEventListener('resize', menuRemove);
+    }
+  };
+  const menuRemove = () => menu.remove();
+  const closeOnSecondCM = (e) => {
+    // If user right-clicks elsewhere, replace menu (default browser behavior)
+    if (!menu.contains(e.target)) menu.remove();
+  };
+  setTimeout(() => {
+    document.addEventListener('mousedown', closer);
+    document.addEventListener('contextmenu', closeOnSecondCM);
+    window.addEventListener('blur', menuRemove);
+    window.addEventListener('resize', menuRemove);
+  }, 0);
+}
+
+/* =============== MOVE PROJECT BETWEEN MONTHS =============== */
+function moveProjectToYearMonth(p, targetYear, targetMonth) {
+  targetYear = String(targetYear);
+  targetMonth = String(targetMonth);
+  if (targetYear === activeYear && targetMonth === activeMonth) return;
+
+  const sourceArr = state.years[activeYear][activeMonth];
+  const i = sourceArr.findIndex(x => x.id === p.id);
+  if (i < 0) return;
+  const [moved] = sourceArr.splice(i, 1);
+
+  // Auto-create target year if it doesn't exist
+  const yearWasCreated = !state.years[targetYear];
+  if (yearWasCreated) state.years[targetYear] = createEmptyYear();
+  if (!state.years[targetYear][targetMonth]) state.years[targetYear][targetMonth] = [];
+
+  state.years[targetYear][targetMonth].push(moved);
+  saveState();
+  renderMonthly();
+
+  // If a new year was created, refresh the year picker so user can see it
+  if (yearWasCreated) {
+    renderYearSelect();
+    renderYearManage();
+  }
+
+  if (targetYear !== activeYear) {
+    showToast(`已移到 ${targetYear} 年 ${targetMonth} 月`);
+  } else {
+    showToast(`已移到 ${targetMonth} 月`);
+  }
+}
+
+function openMoveMonthPopup(p, anchor) {
+  // Close any existing popup
+  const existing = document.querySelector('.move-month-popup');
+  if (existing) {
+    const wasForSame = existing.dataset.pid === p.id;
+    existing.remove();
+    if (wasForSame) return;
+  }
+
+  // Local state — selected year for this popup session
+  let selectedYear = activeYear;
+
+  const popup = document.createElement('div');
+  popup.className = 'move-month-popup';
+  popup.style.position = 'fixed';
+  popup.dataset.pid = p.id;
+  popup.onclick = (e) => e.stopPropagation();
+
+  function rebuild() {
+    popup.innerHTML = '';
+
+    // Year selector row
+    const yearRow = document.createElement('div');
+    yearRow.className = 'move-month-year-row';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'move-month-year-arrow';
+    prevBtn.innerHTML = '◀';
+    prevBtn.title = '前一年';
+    prevBtn.onclick = (e) => {
+      e.stopPropagation();
+      selectedYear = String(parseInt(selectedYear, 10) - 1);
+      rebuild();
+    };
+
+    const yearLabel = document.createElement('div');
+    yearLabel.className = 'move-month-year-label';
+    const isNewYear = !state.years[selectedYear];
+    yearLabel.innerHTML = isNewYear
+      ? `<span>${escapeHtml(selectedYear)}</span><span class="new-badge">新年度</span>`
+      : `<span>${escapeHtml(selectedYear)}</span>`;
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'move-month-year-arrow';
+    nextBtn.innerHTML = '▶';
+    nextBtn.title = '下一年';
+    nextBtn.onclick = (e) => {
+      e.stopPropagation();
+      selectedYear = String(parseInt(selectedYear, 10) + 1);
+      rebuild();
+    };
+
+    yearRow.appendChild(prevBtn);
+    yearRow.appendChild(yearLabel);
+    yearRow.appendChild(nextBtn);
+    popup.appendChild(yearRow);
+
+    // Title showing current location
+    const title = document.createElement('div');
+    title.className = 'move-month-title';
+    title.textContent = `目前位置 · ${activeYear} 年 ${activeMonth} 月`;
+    popup.appendChild(title);
+
+    // Month grid
+    const grid = document.createElement('div');
+    grid.className = 'move-month-grid';
+    for (let m = 1; m <= 12; m++) {
+      const btn = document.createElement('button');
+      btn.className = 'move-month-btn';
+      const isCurrent = (selectedYear === activeYear && String(m) === activeMonth);
+      if (isCurrent) {
+        btn.classList.add('current');
+        btn.disabled = true;
+        btn.title = '目前位置';
+      } else {
+        btn.onclick = () => {
+          moveProjectToYearMonth(p, selectedYear, String(m));
+          popup.remove();
+        };
+      }
+      btn.textContent = m + '月';
+      grid.appendChild(btn);
+    }
+    popup.appendChild(grid);
+  }
+
+  rebuild();
+  document.body.appendChild(popup);
+
+  // Position popup, flipping above if no room below
+  const rect = anchor.getBoundingClientRect();
+  const popupRect = popup.getBoundingClientRect();
+  let topPos = rect.bottom + 6;
+  let leftPos = rect.left;
+  if (leftPos + popupRect.width > window.innerWidth - 12) {
+    leftPos = window.innerWidth - popupRect.width - 12;
+  }
+  if (topPos + popupRect.height > window.innerHeight - 12) {
+    topPos = rect.top - popupRect.height - 6;
+  }
+  popup.style.top = Math.max(12, topPos) + 'px';
+  popup.style.left = Math.max(12, leftPos) + 'px';
+
+  // Close on outside click
+  setTimeout(() => {
+    const closer = (e) => {
+      if (!popup.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) {
+        popup.remove();
+        document.removeEventListener('click', closer);
+      }
+    };
+    document.addEventListener('click', closer);
+  }, 0);
+}
+
+function numInput(p, field) {
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.inputMode = 'numeric';
+  inp.className = 'cell-input num';
+  inp.value = p[field] === '' || p[field] == null ? '' : fmtNum(p[field]);
+  inp.placeholder = '0';
+  inp.onfocus = () => {
+    inp.value = p[field] === '' || p[field] == null ? '' : String(p[field]);
+  };
+  inp.onblur = () => {
+    let v = inp.value.replace(/,/g, '').trim();
+    if (v === '') {
+      p[field] = '';
+      inp.value = '';
+    } else {
+      const n = Number(v);
+      if (isNaN(n)) {
+        inp.value = p[field] === '' || p[field] == null ? '' : fmtNum(p[field]);
+      } else {
+        p[field] = n;
+        inp.value = fmtNum(n);
+      }
+    }
+    saveState();
+    // Update totals without full re-render
+    updateFooterTotals();
+  };
+  return inp;
+}
+
+function textareaInput(p, field, placeholder) {
+  const ta = document.createElement('textarea');
+  ta.className = 'cell-input';
+  ta.value = p[field] || '';
+  ta.placeholder = placeholder;
+  ta.rows = 1;
+  const autoresize = () => {
+    ta.style.height = 'auto';
+    ta.style.height = (ta.scrollHeight + 2) + 'px';
+  };
+  ta.oninput = () => { p[field] = ta.value; saveState(); autoresize(); };
+  setTimeout(autoresize, 0);
+  return ta;
+}
+
+/* =============== TAG CELL =============== */
+function tagCell(p, field, kind) {
+  const cell = document.createElement('div');
+  cell.className = 'tag-cell';
+  const tagName = p[field];
+  const tagDef = findTag(kind, tagName);
+  if (tagDef) {
+    cell.appendChild(makeTagEl(tagDef));
+  } else {
+    const e = document.createElement('span');
+    e.className = 'tag-empty';
+    e.textContent = '—';
+    cell.appendChild(e);
+  }
+
+  cell.onclick = (ev) => {
+    ev.stopPropagation();
+    if (openTagDropdown) {
+      openTagDropdown.remove();
+      const wasSame = openTagDropdown.dataset.cellId === p.id + ':' + field;
+      openTagDropdown = null;
+      if (wasSame) return;
+    }
+    openTagDropdownFor(cell, p, field, kind);
+  };
+
+  return cell;
+}
+
+function makeTagEl(tagDef) {
+  const span = document.createElement('span');
+  span.className = 'tag';
+  span.style.background = tagDef.color + '33';
+  span.style.color = tagTextColor(tagDef.color);
+  span.style.boxShadow = `inset 0 0 0 1px ${tagDef.color}66`;
+  span.textContent = tagDef.name;
+  return span;
+}
+
+function lighten(hex, percent) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substr(0,2),16);
+  const g = parseInt(h.substr(2,2),16);
+  const b = parseInt(h.substr(4,2),16);
+  const lr = Math.min(255, Math.round(r + (255 - r) * (percent/100)));
+  const lg = Math.min(255, Math.round(g + (255 - g) * (percent/100)));
+  const lb = Math.min(255, Math.round(b + (255 - b) * (percent/100)));
+  return '#' + [lr,lg,lb].map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+function darken(hex, percent) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substr(0,2),16);
+  const g = parseInt(h.substr(2,2),16);
+  const b = parseInt(h.substr(4,2),16);
+  const factor = 1 - (percent / 100);
+  const dr = Math.max(0, Math.round(r * factor));
+  const dg = Math.max(0, Math.round(g * factor));
+  const db = Math.max(0, Math.round(b * factor));
+  return '#' + [dr,dg,db].map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+// Returns appropriate text color for a tag based on current theme
+function tagTextColor(hex) {
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  return theme === 'light' ? darken(hex, 30) : lighten(hex, 60);
+}
+
+function openTagDropdownFor(anchor, p, field, kind) {
+  const dropdown = document.createElement('div');
+  dropdown.className = 'tag-dropdown';
+  dropdown.dataset.cellId = p.id + ':' + field;
+  dropdown.onclick = (e) => e.stopPropagation();
+
+  // Clear option
+  const clearOpt = document.createElement('div');
+  clearOpt.className = 'tag-option';
+  clearOpt.innerHTML = '<span class="tag-option-clear">— 清除 —</span>';
+  clearOpt.onclick = () => {
+    p[field] = null;
+    saveState();
+    closeDropdown();
+    refreshTagCell(anchor, p, field, kind);
+  };
+  dropdown.appendChild(clearOpt);
+
+  // Existing tags
+  const list = document.createElement('div');
+  list.className = 'tag-dropdown-list';
+  state.tags[kind].forEach(t => {
+    const opt = document.createElement('div');
+    opt.className = 'tag-option';
+    opt.appendChild(makeTagEl(t));
+    const del = document.createElement('button');
+    del.className = 'tag-option-delete';
+    del.textContent = '✕';
+    del.title = '刪除此標籤';
+    del.onclick = (ev) => {
+      ev.stopPropagation();
+      if (!confirm(`刪除標籤「${t.name}」？所有使用此標籤的紀錄會變為空。`)) return;
+      removeTag(kind, t.name);
+      closeDropdown();
+      refreshTagCell(anchor, p, field, kind);
+    };
+    opt.appendChild(del);
+    opt.onclick = () => {
+      p[field] = t.name;
+      saveState();
+      closeDropdown();
+      refreshTagCell(anchor, p, field, kind);
+    };
+    list.appendChild(opt);
+  });
+  dropdown.appendChild(list);
+
+  // Divider
+  const div = document.createElement('div');
+  div.className = 'tag-divider';
+  dropdown.appendChild(div);
+
+  // Add new
+  const addRow = document.createElement('div');
+  addRow.className = 'tag-add-row';
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.placeholder = '新標籤…';
+  inp.maxLength = 20;
+  const btn = document.createElement('button');
+  btn.className = 'tag-add-btn';
+  btn.textContent = '新增';
+  const doAdd = () => {
+    const name = inp.value.trim();
+    if (!name) { inp.focus({ preventScroll: true }); return; }
+    if (state.tags[kind].some(t => t.name === name)) {
+      showToast('標籤已存在');
+      return;
+    }
+    const color = COLOR_PALETTE[state.tags[kind].length % COLOR_PALETTE.length];
+    state.tags[kind].push({ name, color });
+    p[field] = name;
+    saveState();
+    closeDropdown();
+    refreshTagCell(anchor, p, field, kind);
+  };
+  btn.onclick = doAdd;
+  inp.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+  addRow.appendChild(inp);
+  addRow.appendChild(btn);
+  dropdown.appendChild(addRow);
+
+  anchor.style.position = 'relative';
+  anchor.appendChild(dropdown);
+  openTagDropdown = dropdown;
+  setTimeout(() => inp.focus({ preventScroll: true }), 50);
+
+  function closeDropdown() {
+    if (openTagDropdown === dropdown) openTagDropdown = null;
+    dropdown.remove();
+  }
+}
+
+function refreshTagCell(cell, p, field, kind) {
+  cell.innerHTML = '';
+  const tagDef = findTag(kind, p[field]);
+  if (tagDef) cell.appendChild(makeTagEl(tagDef));
+  else {
+    const e = document.createElement('span');
+    e.className = 'tag-empty';
+    e.textContent = '—';
+    cell.appendChild(e);
+  }
+}
+
+function removeTag(kind, name) {
+  state.tags[kind] = state.tags[kind].filter(t => t.name !== name);
+  // Clear from all projects
+  Object.values(state.years).forEach(year => {
+    Object.values(year).forEach(arr => {
+      arr.forEach(p => {
+        if (kind === 'project' && p.projectStatus === name) p.projectStatus = null;
+        if (kind === 'payment' && p.paymentStatus === name) p.paymentStatus = null;
+        if (kind === 'withholding' && p.withholding === name) p.withholding = null;
+        if (kind === 'client' && p.client === name) p.client = '';
+      });
+    });
+  });
+  saveState();
+  if (activeView === 'monthly') renderMonthly();
+  if (activeView === 'settings') renderSettings();
+  if (activeView === 'client') renderClientSummary();
+  if (activeView === 'tax') renderTaxSummary();
+}
+
+/* =============== HOURS CELL =============== */
+function hoursCell(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'hours-cell';
+
+  const total = totalHours(p);
+  const display = document.createElement('div');
+  display.className = 'hours-display';
+
+  // Editable hours input
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.inputMode = 'decimal';
+  inp.className = 'hours-input';
+  inp.value = total === 0 ? '' : fmtHours(total);
+  inp.placeholder = '0';
+  inp.title = '直接輸入工時數,或使用下方 +/− 按鈕累加';
+
+  const commitTypedValue = () => {
+    const raw = inp.value.trim();
+    if (raw === '') {
+      // Cleared the field — wipe entries
+      if (p.workEntries && p.workEntries.length > 0) {
+        p.workEntries = [];
+        saveState();
+        rerenderCell();
+      }
+      return;
+    }
+    const n = Number(raw);
+    if (isNaN(n) || n < 0) {
+      // Invalid — restore original
+      inp.value = total === 0 ? '' : fmtHours(total);
+      showToast('請輸入大於等於 0 的數字');
+      return;
+    }
+    const rounded = Math.round(n * 100) / 100;
+    if (rounded === total) {
+      inp.value = rounded === 0 ? '' : fmtHours(rounded);
+      return;
+    }
+    // Replace all entries with a single manually-typed entry
+    p.workEntries = rounded > 0
+      ? [{ ts: Date.now(), hours: rounded, manual: true }]
+      : [];
+    saveState();
+    rerenderCell();
+    updateFooterTotals();
+  };
+
+  inp.onblur = commitTypedValue;
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') {
+      inp.value = total === 0 ? '' : fmtHours(total);
+      inp.blur();
+    }
+  };
+
+  display.appendChild(inp);
+
+  const unit = document.createElement('span');
+  unit.className = 'hours-unit';
+  unit.textContent = total > 0 ? '小時' : '';
+  display.appendChild(unit);
+
+  // Detail button — opens entries modal
+  const detailBtn = document.createElement('button');
+  detailBtn.className = 'hours-detail-btn';
+  detailBtn.title = '查看工時明細';
+  detailBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`;
+  detailBtn.onclick = () => openWorkEntries(p);
+  display.appendChild(detailBtn);
+
+  wrap.appendChild(display);
+
+  function rerenderCell() {
+    const newCell = hoursCell(p);
+    wrap.replaceWith(newCell);
+  }
+
+  const btns = document.createElement('div');
+  btns.className = 'hours-buttons';
+
+  const mk = (label, hours, cls) => {
+    const b = document.createElement('button');
+    b.className = 'hours-btn ' + cls;
+    b.textContent = label;
+    b.onclick = () => {
+      if (hours > 0) {
+        p.workEntries.push({ ts: Date.now(), hours });
+      } else {
+        // Remove last entry that matches the absolute hours, otherwise just last
+        const target = Math.abs(hours);
+        let removeIdx = -1;
+        for (let i = p.workEntries.length - 1; i >= 0; i--) {
+          if (p.workEntries[i].hours === target) { removeIdx = i; break; }
+        }
+        if (removeIdx === -1 && p.workEntries.length > 0) removeIdx = p.workEntries.length - 1;
+        if (removeIdx >= 0) p.workEntries.splice(removeIdx, 1);
+      }
+      saveState();
+      rerenderCell();
+      updateFooterTotals();
+      renderMonthTabs();
+    };
+    return b;
+  };
+
+  btns.appendChild(mk('+1', 1, 'plus'));
+  btns.appendChild(mk('+0.5', 0.5, 'plus'));
+  btns.appendChild(mk('−0.5', -0.5, 'minus'));
+  btns.appendChild(mk('−1', -1, 'minus'));
+  wrap.appendChild(btns);
+
+  return wrap;
+}
+
+function openWorkEntries(p) {
+  openWorkModal = p;
+  const modal = document.getElementById('workModal');
+  const body = document.getElementById('workModalBody');
+  const totalEl = document.getElementById('workModalTotal');
+  body.innerHTML = '';
+
+  const entries = [...(p.workEntries || [])].sort((a,b) => b.ts - a.ts);
+
+  if (entries.length === 0) {
+    body.innerHTML = '<div class="modal-empty">尚未記錄工時。<br>關閉視窗後可直接輸入數字,或使用 +1 / +0.5 按鈕累加。</div>';
+  } else {
+    entries.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'work-entry';
+      const d = new Date(e.ts);
+      const date = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+      const time = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const manualBadge = e.manual ? ' <span style="color:var(--accent);font-size:10px;letter-spacing:0.04em">· 手動輸入</span>' : '';
+      row.innerHTML = `
+        <span class="work-entry-time">${date} <span style="opacity:0.6">${time}</span>${manualBadge}</span>
+        <span class="work-entry-hours">+${fmtHours(e.hours)} h</span>
+      `;
+      const del = document.createElement('button');
+      del.className = 'work-entry-delete';
+      del.innerHTML = '✕';
+      del.title = '刪除此筆紀錄';
+      del.onclick = () => {
+        const i = p.workEntries.findIndex(x => x.ts === e.ts && x.hours === e.hours);
+        if (i >= 0) {
+          p.workEntries.splice(i, 1);
+          saveState();
+          openWorkEntries(p);
+          if (activeView === 'monthly') renderMonthly();
+        }
+      };
+      row.appendChild(del);
+      body.appendChild(row);
+    });
+  }
+
+  totalEl.textContent = fmtHours(totalHours(p)) + ' 小時';
+  modal.classList.add('show');
+}
+
+function closeWorkModal() {
+  document.getElementById('workModal').classList.remove('show');
+  openWorkModal = null;
+}
+
+function updateFooterTotals() {
+  // Just trigger month tab re-render and footer
+  renderMonthTabs();
+  // Update footer
+  const arr = getCurrentMonthArr();
+  const footer = document.querySelector('.table-footer .totals');
+  if (!footer) return;
+  const totalIncome = arr.reduce((s, p) => s + (Number(p.income) || 0), 0);
+  const totalAfter = arr.reduce((s, p) => s + (Number(p.afterExpense) || 0), 0);
+  const totalHrs = arr.reduce((s, p) => s + totalHours(p), 0);
+  footer.innerHTML = `
+    <div class="total-item"><span class="total-label">總收入</span><span class="total-value accent">NT$ ${fmtNum(totalIncome)}</span></div>
+    <div class="total-item"><span class="total-label">淨利</span><span class="total-value">NT$ ${fmtNum(totalAfter)}</span></div>
+    <div class="total-item"><span class="total-label">總工時</span><span class="total-value">${fmtHours(totalHrs)} h</span></div>
+  `;
+}
+
+/* =============== MONTH STATS VIEW =============== */
+function renderMonthStats() {
+  const container = document.getElementById('monthStatsContent');
+  container.innerHTML = '';
+
+  const yearData = state.years[activeYear] || createEmptyYear();
+  const now = new Date();
+  const isCurrentYear = String(now.getFullYear()) === activeYear;
+  const currentMonth = isCurrentYear ? now.getMonth() + 1 : null;
+
+  // Aggregate per month
+  const monthStats = [];
+  let totalIncome = 0;
+  let totalProfit = 0;
+  let totalHrs = 0;
+  let totalCount = 0;
+
+  for (let m = 1; m <= 12; m++) {
+    const arr = yearData[String(m)] || [];
+    let income = 0, profit = 0, hrs = 0;
+    arr.forEach(p => {
+      income += Number(p.income) || 0;
+      profit += Number(p.afterExpense) || 0;
+      hrs += totalHours(p);
+    });
+    monthStats.push({
+      month: m,
+      count: arr.length,
+      income,
+      profit,
+      hrs,
+      hasData: arr.length > 0
+    });
+    totalIncome += income;
+    totalProfit += profit;
+    totalHrs += hrs;
+    totalCount += arr.length;
+  }
+
+  // Compute averages — only over months that have data
+  // (If "current year" mode, also limit to months up to and including current month)
+  const monthsWithData = monthStats.filter(s => s.hasData).length;
+  const monthsElapsed = isCurrentYear
+    ? Math.max(1, currentMonth)
+    : 12;
+
+  const avgIncomeByData = monthsWithData > 0 ? totalIncome / monthsWithData : 0;
+  const avgProfitByData = monthsWithData > 0 ? totalProfit / monthsWithData : 0;
+  const avgHrsByData = monthsWithData > 0 ? totalHrs / monthsWithData : 0;
+
+  const avgIncomeByElapsed = totalIncome / monthsElapsed;
+  const avgProfitByElapsed = totalProfit / monthsElapsed;
+  const avgHrsByElapsed = totalHrs / monthsElapsed;
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'month-stats-header';
+  header.innerHTML = `
+    <div>
+      <div style="font-family:var(--serif);font-style:italic;font-size:22px">${activeYear} 年度 月份統計</div>
+      <div style="font-size:11px;color:var(--text-3);letter-spacing:0.18em;text-transform:uppercase;margin-top:2px">MONTHLY BREAKDOWN</div>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div class="total-item"><span class="total-label">已記錄月份</span><span class="total-value">${monthsWithData} / 12</span></div>
+      <div class="total-item"><span class="total-label">案件總數</span><span class="total-value">${totalCount}</span></div>
+      <div class="total-item"><span class="total-label">年度總收入</span><span class="total-value">NT$ ${fmtNum(totalIncome)}</span></div>
+      <div class="total-item"><span class="total-label">年度淨利</span><span class="total-value accent">NT$ ${fmtNum(totalProfit)}</span></div>
+    </div>
+  `;
+  container.appendChild(header);
+
+  // Find max profit for bar scaling
+  const maxProfit = Math.max(1, ...monthStats.map(s => s.profit));
+
+  // Table
+  const wrap = document.createElement('div');
+  wrap.className = 'month-stats-wrap';
+
+  const table = document.createElement('table');
+  table.className = 'month-stats';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>月份</th>
+        <th class="num">案件數</th>
+        <th class="num">收入</th>
+        <th class="num">淨利</th>
+        <th class="num">工時</th>
+        <th style="width:30%">淨利視覺化</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+
+  const tbody = table.querySelector('tbody');
+  monthStats.forEach(s => {
+    const tr = document.createElement('tr');
+    if (!s.hasData) tr.classList.add('empty');
+    if (s.month === currentMonth) tr.classList.add('current');
+
+    // Bar width based on profit relative to max
+    const barPct = s.profit > 0 ? (s.profit / maxProfit) * 100 : 0;
+
+    tr.innerHTML = `
+      <td>
+        <div class="month-stats-label">
+          <span class="month-num">${s.month}</span>
+          <span>${MONTH_NAMES[s.month - 1]}</span>
+        </div>
+      </td>
+      <td class="month-stats-num count">${s.count > 0 ? s.count + ' 筆' : '—'}</td>
+      <td class="month-stats-num${s.income > 0 ? '' : ' empty'}">${s.income > 0 ? 'NT$ ' + fmtNum(s.income) : '—'}</td>
+      <td class="month-stats-num${s.profit > 0 ? ' profit' : ' empty'}">${s.profit !== 0 ? 'NT$ ' + fmtNum(s.profit) : '—'}</td>
+      <td class="month-stats-num${s.hrs > 0 ? '' : ' empty'}">${s.hrs > 0 ? fmtHours(s.hrs) + ' h' : '—'}</td>
+      <td class="month-stats-bar-cell">
+        <div class="month-stats-bar-wrap">
+          <div class="month-stats-bar-track">
+            <div class="month-stats-bar-fill" style="width:${barPct}%"></div>
+          </div>
+        </div>
+      </td>
+    `;
+
+    // Click row to jump to that month in monthly view
+    tr.style.cursor = 'pointer';
+    tr.title = '點擊跳轉到該月份';
+    tr.addEventListener('click', () => {
+      activeMonth = String(s.month);
+      setView('monthly');
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  // Footer with totals + averages
+  const tfoot = document.createElement('tfoot');
+  tfoot.innerHTML = `
+    <tr class="totals">
+      <td class="label">全年合計</td>
+      <td class="num">${totalCount} 筆</td>
+      <td class="num">NT$ ${fmtNum(totalIncome)}</td>
+      <td class="num profit">NT$ ${fmtNum(totalProfit)}</td>
+      <td class="num">${fmtHours(totalHrs)} h</td>
+      <td></td>
+    </tr>
+    ${isCurrentYear ? `
+    <tr class="averages">
+      <td class="label">月平均 · 至 ${currentMonth} 月</td>
+      <td class="num">${(totalCount / monthsElapsed).toFixed(1)} 筆</td>
+      <td class="num">NT$ ${fmtNum(Math.round(avgIncomeByElapsed))}</td>
+      <td class="num">NT$ ${fmtNum(Math.round(avgProfitByElapsed))}</td>
+      <td class="num">${fmtHours(Math.round(avgHrsByElapsed * 10) / 10)} h</td>
+      <td></td>
+    </tr>
+    ` : ''}
+  `;
+  table.appendChild(tfoot);
+
+  wrap.appendChild(table);
+  container.appendChild(wrap);
+
+  // Hint text
+  const hint = document.createElement('div');
+  hint.style.cssText = 'margin-top:14px;font-size:11.5px;color:var(--text-3);line-height:1.7';
+  hint.innerHTML = `
+    ${isCurrentYear ? `<strong style="color:var(--text-2);font-weight:500">月平均 · 至 ${currentMonth} 月</strong> 會根據今天的日期自動更新,把空白月份也算進去,反映年度至今的真實狀況。<br>` : ''}
+    點擊任一列可以跳轉到該月份的詳細紀錄。
+  `;
+  container.appendChild(hint);
+}
+
+/* =============== TAX SUMMARY VIEW =============== */
+function renderTaxSummary() {
+  const container = document.getElementById('taxSummary');
+  container.innerHTML = '';
+
+  const taxStd = getTaxStandard(activeYear);
+  const yearData = state.years[activeYear] || createEmptyYear();
+  // Collect all projects for the year
+  const allProjects = [];
+  for (let m = 1; m <= 12; m++) {
+    (yearData[String(m)] || []).forEach(p => allProjects.push(p));
+  }
+
+  // Group by withholding tag
+  const byCategory = {};
+  let grandTotal = 0;
+
+  allProjects.forEach(p => {
+    const inc = Number(p.income) || 0;
+    grandTotal += inc;
+    if (!p.withholding) return;
+    if (!byCategory[p.withholding]) byCategory[p.withholding] = { total: 0, count: 0 };
+    byCategory[p.withholding].total += inc;
+    byCategory[p.withholding].count += 1;
+  });
+
+  // Header — show active year + tax standard year label
+  const header = document.createElement('div');
+  header.className = 'tax-summary-header';
+  const stdBadge = taxStd.estimated
+    ? `<span style="margin-left:8px;font-size:10px;background:var(--surface-2);color:var(--accent);padding:3px 8px;border-radius:999px;letter-spacing:0.05em;border:1px solid var(--accent-soft)">⚠ ${escapeHtml(taxStd.filingNote)}</span>`
+    : `<span style="margin-left:8px;font-size:10px;background:var(--surface-2);color:var(--text-3);padding:3px 8px;border-radius:999px;letter-spacing:0.05em">${escapeHtml(taxStd.yearLabel)} · ${escapeHtml(taxStd.filingNote)}</span>`;
+  header.innerHTML = `
+    <div>
+      <div style="font-family:var(--serif);font-style:italic;font-size:22px;display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+        ${activeYear} 年度 扣繳稅務 ${stdBadge}
+      </div>
+      <div style="font-size:11px;color:var(--text-3);letter-spacing:0.18em;text-transform:uppercase;margin-top:2px">WITHHOLDING TAX OVERVIEW</div>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div class="total-item"><span class="total-label">全年總收入</span><span class="total-value accent">NT$ ${fmtNum(grandTotal)}</span></div>
+      <div class="total-item"><span class="total-label">案件總數</span><span class="total-value">${allProjects.length}</span></div>
+    </div>
+  `;
+  container.appendChild(header);
+
+  // Build category cards — show all known withholding tags
+  const grid = document.createElement('div');
+  grid.className = 'tax-grid';
+
+  const orderedTags = [...state.tags.withholding].sort((a, b) => {
+    const order = { '9A': 0, '9B': 1, '50': 2 };
+    const oa = order[a.name] !== undefined ? order[a.name] : 99;
+    const ob = order[b.name] !== undefined ? order[b.name] : 99;
+    return oa - ob;
+  });
+
+  orderedTags.forEach(tag => {
+    const data = byCategory[tag.name] || { total: 0, count: 0 };
+    const labelText = WITHHOLDING_DESC[tag.name] || '自訂類別';
+    const deduction = getDeductionFor(tag.name, taxStd);
+    const dedLabel = getDeductionLabelFor(tag.name, taxStd);
+
+    const card = document.createElement('div');
+    card.className = 'tax-card';
+    card.style.setProperty('--card-color', tag.color);
+
+    let rowsHtml = `
+      <div class="tax-card-row">
+        <span class="label">案件數</span>
+        <span class="value">${data.count} 筆</span>
+      </div>
+      <div class="tax-card-row">
+        <span class="label">收入總額</span>
+        <span class="value">NT$ ${fmtNum(data.total)}</span>
+      </div>
+    `;
+
+    let noteHtml = '';
+    if (deduction > 0) {
+      const taxable = Math.max(0, data.total - deduction);
+      rowsHtml += `
+        <div class="tax-card-row deduction">
+          <span class="label">${dedLabel}</span>
+          <span class="value">− NT$ ${fmtNum(deduction)}</span>
+        </div>
+        <div class="tax-card-row taxable">
+          <span class="label">應稅金額</span>
+          <span class="value">NT$ ${fmtNum(taxable)}</span>
+        </div>
+      `;
+      if (tag.name === '9B') {
+        noteHtml = `<div class="tax-note">稿費 / 版稅 / 演講費全年享有 <strong style="color:var(--text-2)">18 萬元免稅額</strong>(所得稅法第 4 條第 1 項第 23 款),超過部分始計入綜合所得課稅。</div>`;
+      } else if (tag.name === '50') {
+        const wan = (deduction / 10000).toFixed(1).replace(/\.0$/, '');
+        noteHtml = `<div class="tax-note">${escapeHtml(taxStd.yearLabel)} 薪資所得特別扣除額為 <strong style="color:var(--text-2)">${wan} 萬元</strong>,可選擇定額扣除或核實認列必要費用(擇優適用)。</div>`;
+      }
+    } else {
+      rowsHtml += `
+        <div class="tax-card-row taxable">
+          <span class="label">合計</span>
+          <span class="value">NT$ ${fmtNum(data.total)}</span>
+        </div>
+      `;
+      if (tag.name === '9A') {
+        noteHtml = `<div class="tax-note">執行業務所得無年度免稅 / 扣除額,需併入綜合所得課稅;每筆給付達 2 萬元門檻時,扣繳義務人須先預扣繳 <strong style="color:var(--text-2)">10%</strong>。</div>`;
+      }
+    }
+
+    card.innerHTML = `
+      <div class="tax-card-code">${escapeHtml(tag.name)}</div>
+      <div class="tax-card-label">${escapeHtml(labelText)}</div>
+      ${rowsHtml}
+      ${noteHtml}
+    `;
+    grid.appendChild(card);
+  });
+
+  container.appendChild(grid);
+
+  // Total taxable summary
+  let totalTaxable = 0;
+  orderedTags.forEach(tag => {
+    const data = byCategory[tag.name] || { total: 0 };
+    const ded = getDeductionFor(tag.name, taxStd);
+    totalTaxable += Math.max(0, data.total - ded);
+  });
+
+  const totalBox = document.createElement('div');
+  totalBox.className = 'tax-uncategorized';
+  totalBox.style.background = 'linear-gradient(180deg, var(--accent-tint-box), var(--surface))';
+  totalBox.style.borderColor = 'var(--accent-soft)';
+  totalBox.innerHTML = `
+    <div>
+      <div style="font-size:11px;color:var(--text-3);letter-spacing:0.18em;text-transform:uppercase;margin-bottom:4px">扣除免稅額 / 扣除額後合計</div>
+      <div style="font-family:var(--serif);font-style:italic;font-size:16px;color:var(--text-2)">應併入綜合所得課稅之金額</div>
+    </div>
+    <div style="font-family:var(--mono);font-size:24px;color:var(--accent);font-feature-settings:'tnum';font-weight:500">NT$ ${fmtNum(totalTaxable)}</div>
+  `;
+  container.appendChild(totalBox);
+
+  // Disclaimer with year-specific brackets
+  const disclaimer = document.createElement('div');
+  disclaimer.className = 'tax-disclaimer';
+  const bracketText = bracketsToText(taxStd.brackets);
+  const sourceNote = taxStd.estimated
+    ? `因 ${activeYear} 年度官方標準尚未公告,暫採 115 年度標準試算,實際申報請以財政部公告為準。`
+    : `本頁採用 <strong>${escapeHtml(taxStd.yearLabel)}(${escapeHtml(taxStd.filingNote)})</strong> 之免稅額、扣除額及課稅級距,資料源自財政部公告。`;
+  disclaimer.innerHTML = `
+    <strong>⚠ 提醒</strong> · ${sourceNote}此處為簡易試算,僅供個人記錄參考。實際應納稅額會依個人免稅額、列舉/標準扣除額、特別扣除額、累進稅率、可抵減稅額及其他各類所得綜合計算,請以國稅局申報結果為準。<br>
+    <strong>${escapeHtml(taxStd.yearLabel)}稅率區間</strong> · ${escapeHtml(bracketText)}
+  `;
+  container.appendChild(disclaimer);
+}
+
+/* =============== CLIENT SUMMARY VIEW =============== */
+function renderClientSummary() {
+  const container = document.getElementById('clientSummary');
+  container.innerHTML = '';
+
+  const yearData = state.years[activeYear] || createEmptyYear();
+  // Group by client
+  const byClient = {};
+  for (let m = 1; m <= 12; m++) {
+    (yearData[String(m)] || []).forEach(p => {
+      const name = (p.client || '').trim() || '(未填客戶)';
+      if (!byClient[name]) byClient[name] = [];
+      byClient[name].push({ ...p, month: m });
+    });
+  }
+
+  const clientNames = Object.keys(byClient);
+
+  // Header summary
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:14px';
+  const totalIncome = clientNames.reduce((s, c) => s + byClient[c].reduce((ss, p) => ss + (Number(p.income) || 0), 0), 0);
+  const totalAfter = clientNames.reduce((s, c) => s + byClient[c].reduce((ss, p) => ss + (Number(p.afterExpense) || 0), 0), 0);
+  const totalProjects = clientNames.reduce((s, c) => s + byClient[c].length, 0);
+  header.innerHTML = `
+    <div>
+      <div style="font-family:var(--serif);font-style:italic;font-size:22px">${activeYear} 年度總覽</div>
+      <div style="font-size:11px;color:var(--text-3);letter-spacing:0.18em;text-transform:uppercase;margin-top:2px">CLIENT-LEVEL ANNUAL SUMMARY</div>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div class="total-item"><span class="total-label">客戶數</span><span class="total-value">${clientNames.length}</span></div>
+      <div class="total-item"><span class="total-label">案件數</span><span class="total-value">${totalProjects}</span></div>
+      <div class="total-item"><span class="total-label">淨利</span><span class="total-value accent">NT$ ${fmtNum(totalAfter)}</span></div>
+      <div class="total-item"><span class="total-label">總收入</span><span class="total-value">NT$ ${fmtNum(totalIncome)}</span></div>
+    </div>
+  `;
+  container.appendChild(header);
+
+  if (clientNames.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = `
+      <div class="empty-state-icon">✦</div>
+      <div class="empty-state-title">${activeYear} 年還沒有任何資料</div>
+      <div class="empty-state-desc">回到「月份總覽」新增專案後，這裡會自動顯示客戶分組</div>
+    `;
+    container.appendChild(empty);
+    return;
+  }
+
+  // Sort clients by afterExpense desc
+  clientNames.sort((a, b) => {
+    const sa = byClient[a].reduce((s, p) => s + (Number(p.afterExpense) || 0), 0);
+    const sb = byClient[b].reduce((s, p) => s + (Number(p.afterExpense) || 0), 0);
+    return sb - sa;
+  });
+
+  const grid = document.createElement('div');
+  grid.className = 'client-summary';
+
+  clientNames.forEach(name => {
+    const projects = byClient[name];
+    const cIncome = projects.reduce((s, p) => s + (Number(p.income) || 0), 0);
+    const cAfter = projects.reduce((s, p) => s + (Number(p.afterExpense) || 0), 0);
+    const cHours = projects.reduce((s, p) => s + totalHours(p), 0);
+
+    const card = document.createElement('div');
+    card.className = 'client-card';
+
+    const head = document.createElement('div');
+    head.className = 'client-card-header';
+    head.innerHTML = `
+      <div>
+        <h3 class="client-name">${escapeHtml(name)}</h3>
+        <div class="client-card-stats">
+          <span>${projects.length} 案</span>
+          <span>${fmtHours(cHours)} h</span>
+        </div>
+      </div>
+      <div class="client-card-totals">
+        <div class="client-card-total">
+          <span style="font-size:10px;color:var(--text-3);letter-spacing:0.18em;text-transform:uppercase;font-weight:400;font-family:var(--sans);display:block;margin-bottom:2px">淨利</span>
+          NT$ ${fmtNum(cAfter)}
+        </div>
+        <div class="client-card-after">收入 NT$ ${fmtNum(cIncome)}</div>
+      </div>
+    `;
+    card.appendChild(head);
+
+    const list = document.createElement('div');
+    list.className = 'client-card-list';
+
+    if (projects.length === 0) {
+      list.innerHTML = '<div class="client-card-empty">無資料</div>';
+    } else {
+      // Sort by month
+      projects.sort((a, b) => a.month - b.month);
+      projects.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'client-project-row';
+        const projName = (p.projectName || '').trim() || '(未命名)';
+        row.innerHTML = `
+          <span class="client-project-month">${p.month}月</span>
+          <span class="client-project-name" title="${escapeHtml(projName)}">${escapeHtml(projName)}</span>
+          <span class="client-project-amount">${p.afterExpense ? fmtNum(p.afterExpense) : '—'}</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+    card.appendChild(list);
+
+    grid.appendChild(card);
+  });
+
+  container.appendChild(grid);
+}
+
+/* =============== SETTINGS VIEW =============== */
+function renderSettings() {
+  const kindToList = {
+    client: 'clientTagsList',
+    project: 'projectTagsList',
+    payment: 'paymentTagsList',
+    withholding: 'withholdingTagsList'
+  };
+  ['client', 'project', 'payment', 'withholding'].forEach(kind => {
+    const listEl = document.getElementById(kindToList[kind]);
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    state.tags[kind].forEach(t => {
+      const item = document.createElement('span');
+      item.className = 'tag-mgmt-item';
+      item.style.background = t.color + '33';
+      item.style.color = tagTextColor(t.color);
+      item.style.boxShadow = `inset 0 0 0 1px ${t.color}66`;
+      item.innerHTML = `<span>${escapeHtml(t.name)}</span>`;
+      const del = document.createElement('button');
+      del.className = 'tag-mgmt-delete';
+      del.textContent = '✕';
+      del.title = '刪除';
+      del.onclick = () => {
+        if (!confirm(`刪除「${t.name}」?使用此標籤的紀錄會被清空。`)) return;
+        removeTag(kind, t.name);
+      };
+      item.appendChild(del);
+      listEl.appendChild(item);
+    });
+    if (state.tags[kind].length === 0) {
+      listEl.innerHTML = '<span style="color:var(--text-3);font-size:12px;font-style:italic">尚無標籤</span>';
+    }
+  });
+
+  // Color pickers
+  ['Client', 'Project', 'Payment', 'Withholding'].forEach(prefix => {
+    const el = document.getElementById(`new${prefix}TagColor`);
+    if (!el) return;
+    el.innerHTML = '';
+    el.dataset.selected = el.dataset.selected || COLOR_PALETTE[0];
+    COLOR_PALETTE.forEach(c => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch' + (c === el.dataset.selected ? ' selected' : '');
+      sw.style.background = c;
+      sw.onclick = () => {
+        el.dataset.selected = c;
+        el.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+        sw.classList.add('selected');
+      };
+      el.appendChild(sw);
+    });
+  });
+}
+
+/* =============== VIEW SWITCH =============== */
+function setView(v) {
+  activeView = v;
+  document.querySelectorAll('.view-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.view === v);
+  });
+  document.querySelectorAll('.view-section').forEach(s => {
+    s.classList.toggle('active', s.dataset.view === v);
+  });
+  if (v === 'monthly') renderMonthly();
+  if (v === 'monthstats') renderMonthStats();
+  if (v === 'client') renderClientSummary();
+  if (v === 'tax') renderTaxSummary();
+  if (v === 'settings') renderSettings();
+}
+
+/* =============== EXPORT / IMPORT =============== */
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const date = new Date().toISOString().slice(0,10);
+  a.download = `客戶接案管理_備份_${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setBackupMeta({ lastManualBackup: Date.now() });
+  updateBackupBadge();
+  showToast('已匯出備份');
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed.years) throw new Error('無效的資料格式');
+      if (!confirm('匯入會覆蓋目前的所有資料，確定要繼續？建議先匯出備份。')) return;
+      state = parsed;
+      activeYear = state.currentYear || Object.keys(state.years).sort((a,b) => b.localeCompare(a))[0];
+      saveState();
+      renderAll();
+      showToast('已匯入資料');
+    } catch (err) {
+      showToast('匯入失敗：' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* =============== THEME SWITCHING =============== */
+const THEME_KEY = 'shadow_ledger_theme';
+
+function getInitialTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch (e) {}
+  // Fall back to system preference
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+    return 'light';
+  }
+  return 'dark';
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  // Toggle icon visibility — show the icon for the OTHER mode (i.e. what you'd switch to)
+  const darkIcon = document.getElementById('themeIconDark');
+  const lightIcon = document.getElementById('themeIconLight');
+  if (darkIcon && lightIcon) {
+    if (theme === 'dark') {
+      darkIcon.style.display = 'none';
+      lightIcon.style.display = '';
+    } else {
+      darkIcon.style.display = '';
+      lightIcon.style.display = 'none';
+    }
+  }
+  try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+  // Re-render so inline tag colors get recomputed for the new theme
+  if (typeof renderAll === 'function') renderAll();
+}
+
+// Apply theme as early as possible
+applyTheme(getInitialTheme());
+
+/* =============== INIT =============== */
+function renderAll() {
+  renderYearSelect();
+  renderYearManage();
+  if (activeView === 'monthly') renderMonthly();
+  if (activeView === 'monthstats') renderMonthStats();
+  if (activeView === 'client') renderClientSummary();
+  if (activeView === 'tax') renderTaxSummary();
+  if (activeView === 'settings') renderSettings();
+}
+
+// Year select change
+document.getElementById('yearSelect').addEventListener('change', (e) => {
+  activeYear = e.target.value;
+  state.currentYear = activeYear;
+  saveState();
+  renderAll();
+});
+
+// Year manage button
+document.getElementById('yearManageBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  yearManageOpen = !yearManageOpen;
+  document.getElementById('yearManage').classList.toggle('show', yearManageOpen);
+});
+
+// Theme toggle button
+document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+// View tabs
+document.querySelectorAll('.view-tab').forEach(t => {
+  t.addEventListener('click', () => setView(t.dataset.view));
+});
+
+// Export/import
+document.getElementById('exportBtn').addEventListener('click', exportData);
+document.getElementById('exportBtn2').addEventListener('click', exportData);
+document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+document.getElementById('importBtn2').addEventListener('click', () => document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', (e) => {
+  if (e.target.files[0]) importData(e.target.files[0]);
+  e.target.value = '';
+});
+
+// Reset
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('確定要清除所有資料？這將會刪除所有年度的所有紀錄，此動作無法復原。')) return;
+  if (!confirm('再次確認：所有資料即將被永久清除。')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  state = defaultState();
+  activeYear = state.currentYear;
+  renderAll();
+  showToast('已重置所有資料');
+});
+
+// Add tag buttons in settings
+['Client', 'Project', 'Payment', 'Withholding'].forEach(prefix => {
+  const kind = prefix.toLowerCase();
+  document.getElementById(`add${prefix}TagBtn`).addEventListener('click', () => {
+    const inp = document.getElementById(`new${prefix}TagName`);
+    const colorEl = document.getElementById(`new${prefix}TagColor`);
+    const name = inp.value.trim();
+    if (!name) { inp.focus({ preventScroll: true }); return; }
+    if (state.tags[kind].some(t => t.name === name)) {
+      showToast('標籤已存在');
+      return;
+    }
+    state.tags[kind].push({ name, color: colorEl.dataset.selected });
+    inp.value = '';
+    saveState();
+    renderSettings();
+    showToast('已新增標籤');
+  });
+  document.getElementById(`new${prefix}TagName`).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById(`add${prefix}TagBtn`).click();
+  });
+});
+
+// Modal close
+document.getElementById('workModalClose').addEventListener('click', closeWorkModal);
+document.getElementById('workModal').addEventListener('click', (e) => {
+  if (e.target.id === 'workModal') closeWorkModal();
+});
+
+// Close dropdowns on outside click
+document.addEventListener('click', (e) => {
+  if (openTagDropdown && !openTagDropdown.contains(e.target)) {
+    openTagDropdown.remove();
+    openTagDropdown = null;
+  }
+  if (yearManageOpen) {
+    const ym = document.getElementById('yearManage');
+    const btn = document.getElementById('yearManageBtn');
+    if (!ym.contains(e.target) && !btn.contains(e.target)) {
+      yearManageOpen = false;
+      ym.classList.remove('show');
+    }
+  }
+});
+
+// Esc closes modal
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (openWorkModal) closeWorkModal();
+    if (openTagDropdown) { openTagDropdown.remove(); openTagDropdown = null; }
+    if (yearManageOpen) {
+      yearManageOpen = false;
+      document.getElementById('yearManage').classList.remove('show');
+    }
+    const movePopup = document.querySelector('.move-month-popup');
+    if (movePopup) movePopup.remove();
+    const colPopup = document.querySelector('.add-col-popup');
+    if (colPopup) colPopup.remove();
+    const ctxMenu = document.querySelector('.context-menu');
+    if (ctxMenu) ctxMenu.remove();
+    closeBackupMenu();
+  }
+});
+
+// Backup badge — click to open menu
+document.getElementById('backupBadge').addEventListener('click', toggleBackupMenu);
+
+/* =============== AUTH UI & BOOTSTRAP =============== */
+let authMode = 'signin'; // 'signin' | 'signup'
+
+function showAuthGate() {
+  document.getElementById('authGate').style.display = '';
+  document.getElementById('userPillWrap').style.display = 'none';
+}
+
+function hideAuthGate() {
+  document.getElementById('authGate').style.display = 'none';
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function clearAuthError() {
+  const el = document.getElementById('authError');
+  el.classList.remove('show');
+  el.textContent = '';
+}
+
+function updateAuthModeUI() {
+  const submitBtn = document.getElementById('authSubmit');
+  const modeText = document.getElementById('authModeText');
+  const modeSwitch = document.getElementById('authModeSwitch');
+  if (authMode === 'signin') {
+    submitBtn.textContent = '登入';
+    modeText.textContent = '還沒有帳號?';
+    modeSwitch.textContent = '註冊新帳號';
+  } else {
+    submitBtn.textContent = '註冊';
+    modeText.textContent = '已經有帳號了?';
+    modeSwitch.textContent = '回到登入';
+  }
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  clearAuthError();
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  if (!email || !password) return;
+  if (password.length < 6) {
+    showAuthError('密碼至少 6 個字元');
+    return;
+  }
+  const submitBtn = document.getElementById('authSubmit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = authMode === 'signin' ? '登入中…' : '註冊中…';
+
+  try {
+    if (!initSupabase()) throw new Error('Supabase SDK 未載入');
+    let result;
+    if (authMode === 'signin') {
+      result = await sbClient.auth.signInWithPassword({ email, password });
+    } else {
+      result = await sbClient.auth.signUp({ email, password });
+    }
+    if (result.error) throw result.error;
+    // Successful — onAuthStateChange handler will take over
+  } catch (err) {
+    showAuthError(err.message || '登入失敗');
+    submitBtn.disabled = false;
+    updateAuthModeUI();
+  }
+}
+
+function setOfflineMode() {
+  offlineMode = true;
+  try { localStorage.setItem(OFFLINE_MODE_KEY, '1'); } catch (e) {}
+  currentUser = null;
+  hideAuthGate();
+  bootstrapAppWithLocalData();
+}
+
+async function handleLogout() {
+  if (supabase) {
+    try { await sbClient.auth.signOut(); } catch (e) {}
+  }
+  // Don't clear localStorage — keep it as offline cache for next login
+  location.reload();
+}
+
+function renderUserMenu() {
+  const menu = document.getElementById('userMenu');
+  if (!menu) return;
+
+  if (!currentUser && offlineMode) {
+    menu.innerHTML = `
+      <div class="user-menu-info">
+        <div class="user-menu-email">離線模式</div>
+        <div class="user-menu-status">資料只存在這個瀏覽器中</div>
+      </div>
+      <div class="user-menu-item accent" data-action="signin" style="color:var(--accent)">
+        <span>☁</span><span>登入帳號 (啟用雲端同步)</span>
+      </div>
+    `;
+    menu.querySelectorAll('.user-menu-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const action = el.dataset.action;
+        menu.style.display = 'none';
+        if (action === 'signin') {
+          try { localStorage.removeItem(OFFLINE_MODE_KEY); } catch (e) {}
+          offlineMode = false;
+          showAuthGate();
+          updateAuthModeUI();
+        }
+      });
+    });
+    return;
+  }
+
+  if (!currentUser) return;
+
+  const statusText = {
+    synced: '✓ 已同步',
+    syncing: '同步中…',
+    offline: '離線',
+    error: '⚠ 同步錯誤'
+  }[syncStatus] || '未知';
+  const lastSavedText = cloudLastSavedAt
+    ? new Date(cloudLastSavedAt).toLocaleString('zh-TW', { hour12: false })
+    : '尚未同步';
+  menu.innerHTML = `
+    <div class="user-menu-info">
+      <div class="user-menu-email">${escapeHtml(currentUser.email || '')}</div>
+      <div class="user-menu-status">
+        <span class="sync-dot ${syncStatus}" style="display:inline-block;width:6px;height:6px;border-radius:50%"></span>
+        <span>${escapeHtml(statusText)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-3);font-family:var(--mono);margin-top:4px">上次同步:${escapeHtml(lastSavedText)}</div>
+    </div>
+    <div class="user-menu-item" data-action="forceSync">
+      <span>🔄</span><span>立即同步</span>
+    </div>
+    <div class="user-menu-item danger" data-action="logout">
+      <span>⏏</span><span>登出</span>
+    </div>
+  `;
+  menu.querySelectorAll('.user-menu-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const action = el.dataset.action;
+      menu.style.display = 'none';
+      if (action === 'forceSync') saveToCloud();
+      if (action === 'logout') {
+        if (confirm('確定要登出?本機資料會保留,可重新登入。')) handleLogout();
+      }
+    });
+  });
+}
+
+function toggleUserMenu() {
+  const menu = document.getElementById('userMenu');
+  if (menu.style.display === 'none') {
+    renderUserMenu();
+    menu.style.display = '';
+    setTimeout(() => {
+      const closer = (e) => {
+        const pill = document.getElementById('userPill');
+        if (!menu.contains(e.target) && !pill.contains(e.target)) {
+          menu.style.display = 'none';
+          document.removeEventListener('mousedown', closer);
+        }
+      };
+      document.addEventListener('mousedown', closer);
+    }, 0);
+  } else {
+    menu.style.display = 'none';
+  }
+}
+
+function bootstrapAppWithLocalData() {
+  hideAuthGate();
+  state = loadState();
+  activeYear = state.currentYear;
+  activeMonth = String(new Date().getMonth() + 1);
+  renderAll();
+  updateBackupBadge();
+  updateAutoBackupUI();
+  if (currentUser) {
+    document.getElementById('userPillWrap').style.display = '';
+    document.getElementById('userEmail').textContent = currentUser.email || '';
+  } else if (offlineMode) {
+    // Show "offline" pill so user can sign in later
+    const wrap = document.getElementById('userPillWrap');
+    wrap.style.display = '';
+    document.getElementById('userEmail').textContent = '離線模式';
+    document.getElementById('userSyncDot').className = 'sync-dot offline';
+  }
+}
+
+async function bootstrapAppFromCloud() {
+  hideAuthGate();
+  document.getElementById('userPillWrap').style.display = '';
+  document.getElementById('userEmail').textContent = currentUser.email || '';
+  setSyncStatus('syncing');
+
+  const cloudData = await loadFromCloud();
+  const localState = loadState();
+  const localHasContent = hasMeaningfulData(localState);
+  const cloudHasContent = cloudData && hasMeaningfulData(cloudData);
+
+  if (cloudHasContent) {
+    // Cloud has data — use it (overwrite local cache)
+    state = cloudData;
+    // Ensure structure invariants are still valid (run loadState's migrations on cloud data)
+    state = migrateLoadedState(state);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    activeYear = state.currentYear;
+    activeMonth = String(new Date().getMonth() + 1);
+    renderAll();
+    updateBackupBadge();
+    updateAutoBackupUI();
+    setSyncStatus('synced');
+  } else if (localHasContent) {
+    // Cloud empty but local has data — ask user
+    showMigrationDialog();
+  } else {
+    // Both empty — fresh start
+    state = localState;
+    activeYear = state.currentYear;
+    activeMonth = String(new Date().getMonth() + 1);
+    renderAll();
+    updateBackupBadge();
+    updateAutoBackupUI();
+    setSyncStatus('synced');
+  }
+}
+
+function hasMeaningfulData(s) {
+  if (!s || !s.years) return false;
+  for (const yr of Object.values(s.years)) {
+    for (const arr of Object.values(yr)) {
+      if (Array.isArray(arr) && arr.length > 0) return true;
+    }
+  }
+  return false;
+}
+
+// Re-runs the structural migrations that loadState() does. Used after loading from cloud.
+function migrateLoadedState(parsed) {
+  if (!parsed.tags) parsed.tags = { project: [...DEFAULT_PROJECT_TAGS], payment: [...DEFAULT_PAYMENT_TAGS], withholding: [...DEFAULT_WITHHOLDING_TAGS], client: [] };
+  if (!parsed.tags.project) parsed.tags.project = [...DEFAULT_PROJECT_TAGS];
+  if (!parsed.tags.payment) parsed.tags.payment = [...DEFAULT_PAYMENT_TAGS];
+  if (!parsed.tags.withholding) parsed.tags.withholding = [...DEFAULT_WITHHOLDING_TAGS];
+  if (!parsed.tags.client) parsed.tags.client = [];
+  if (!parsed.customColumns) parsed.customColumns = [];
+  if (!parsed.columnWidths) parsed.columnWidths = {};
+  Object.keys(parsed.years).forEach(y => {
+    for (let m = 1; m <= 12; m++) {
+      if (!parsed.years[y][String(m)]) parsed.years[y][String(m)] = [];
+    }
+  });
+  Object.values(parsed.years).forEach(year => {
+    Object.values(year).forEach(arr => {
+      arr.forEach(p => { if (!p.custom) p.custom = {}; });
+    });
+  });
+  return parsed;
+}
+
+function showMigrationDialog() {
+  document.getElementById('migrationDialog').style.display = '';
+}
+
+function hideMigrationDialog() {
+  document.getElementById('migrationDialog').style.display = 'none';
+}
+
+async function migrationUpload() {
+  hideMigrationDialog();
+  state = loadState();
+  activeYear = state.currentYear;
+  activeMonth = String(new Date().getMonth() + 1);
+  renderAll();
+  updateBackupBadge();
+  updateAutoBackupUI();
+  await saveToCloud();
+  showToast('本機資料已上傳到雲端');
+}
+
+function migrationSkip() {
+  hideMigrationDialog();
+  // Start with empty state (don't touch local cache; let cloud sync override on save)
+  state = defaultState();
+  activeYear = state.currentYear;
+  activeMonth = String(new Date().getMonth() + 1);
+  renderAll();
+  updateBackupBadge();
+  updateAutoBackupUI();
+  setSyncStatus('synced');
+}
+
+// Wire up auth UI
+document.getElementById('authForm').addEventListener('submit', handleAuthSubmit);
+document.getElementById('authModeSwitch').addEventListener('click', () => {
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  clearAuthError();
+  updateAuthModeUI();
+});
+document.getElementById('authOfflineBtn').addEventListener('click', setOfflineMode);
+document.getElementById('userPill').addEventListener('click', toggleUserMenu);
+document.getElementById('migrationUploadBtn').addEventListener('click', migrationUpload);
+document.getElementById('migrationSkipBtn').addEventListener('click', migrationSkip);
+
+// Pre-render the UI immediately so it's never blank, even if bootstrap fails
+try {
+  renderAll();
+  updateBackupBadge();
+  updateAutoBackupUI();
+} catch (e) {
+  console.error('Initial render failed', e);
+}
+
+// MAIN BOOTSTRAP — decide between offline mode, login screen, or auto-login
+(async function bootstrap() {
+  // Watchdog: if bootstrap hasn't completed in 4s, force offline mode so the UI is never blank
+  let bootstrapDone = false;
+  const watchdog = setTimeout(() => {
+    if (bootstrapDone) return;
+    console.warn('Bootstrap watchdog triggered — forcing offline mode');
+    bootstrapDone = true;
+  }, 4000);
+
+  const finish = () => { bootstrapDone = true; clearTimeout(watchdog); };
+
+  try {
+    // Check if user previously chose offline mode
+    try {
+      if (localStorage.getItem(OFFLINE_MODE_KEY) === '1') {
+        offlineMode = true;
+        // Already rendered above; just ensure offline pill is shown
+        const wrap = document.getElementById('userPillWrap');
+        wrap.style.display = '';
+        document.getElementById('userEmail').textContent = '離線模式';
+        document.getElementById('userSyncDot').className = 'sync-dot offline';
+        finish();
+        return;
+      }
+    } catch (e) {}
+
+    if (!initSupabase()) {
+      // SDK didn't load (e.g. blocked by network) — fall back to offline silently
+      console.warn('Supabase SDK not available, falling back to offline mode');
+      offlineMode = true;
+      const wrap = document.getElementById('userPillWrap');
+      wrap.style.display = '';
+      document.getElementById('userEmail').textContent = '離線模式 (SDK 未載入)';
+      document.getElementById('userSyncDot').className = 'sync-dot offline';
+      finish();
+      return;
+    }
+
+    // Check existing session
+    try {
+      const { data: { session } } = await sbClient.auth.getSession();
+      if (session && session.user) {
+        currentUser = session.user;
+        await bootstrapAppFromCloud();
+      } else {
+        showAuthGate();
+        updateAuthModeUI();
+      }
+    } catch (e) {
+      console.error('Session check failed', e);
+      showAuthGate();
+      updateAuthModeUI();
+    }
+    finish();
+
+    // Listen for auth changes (login completes asynchronously)
+    sbClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session && session.user) {
+        if (currentUser && currentUser.id === session.user.id) return;
+        currentUser = session.user;
+        try { localStorage.removeItem(OFFLINE_MODE_KEY); } catch (e) {}
+        await bootstrapAppFromCloud();
+      } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+      }
+    });
+  } catch (err) {
+    console.error('Bootstrap critical error', err);
+    showToast('啟動錯誤,改用離線模式:' + (err.message || err));
+    finish();
+  }
+})();
+
+// Refresh badge every minute to keep "X mins ago" text accurate
+setInterval(updateBackupBadge, 60000);
+</script>
+
+</body>
+</html>

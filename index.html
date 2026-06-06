@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#0e0e10">
+<title>Shadow's Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181b;
+    --surface-2: #232327;
+    --surface-hover: #2a2a2f;
+    --border: #2e2e33;
+    --text: #ededee;
+    --text-2: #a1a1a6;
+    --text-3: #6e6e73;
+    --accent: #d4a05c;
+    --accent-soft: #6b5234;
+    --serif: 'Iowan Old Style', 'Charter', 'Source Serif Pro', Georgia, serif;
+    --sans: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    --mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 80px 28px 40px;
+    flex: 1;
+    width: 100%;
+  }
+
+  .brand {
+    text-align: center;
+    margin-bottom: 72px;
+  }
+  .brand h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 44px;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    margin-bottom: 8px;
+  }
+  .brand h1 em {
+    color: var(--accent);
+    font-style: italic;
+  }
+  .brand .sub {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+
+  .section-label {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding-left: 4px;
+  }
+
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 18px;
+    margin-bottom: 60px;
+  }
+
+  .tool-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    text-decoration: none;
+    color: var(--text);
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    position: relative;
+    min-height: 160px;
+  }
+  .tool-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  }
+  .tool-card.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .tool-card.disabled:hover {
+    border-color: var(--border);
+    transform: none;
+    box-shadow: none;
+  }
+  .tool-card .label {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .tool-card .name {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .tool-card .name em {
+    color: var(--accent);
+    font-style: italic;
+  }
+  .tool-card .desc {
+    font-size: 12.5px;
+    color: var(--text-2);
+    line-height: 1.6;
+    flex: 1;
+  }
+  .tool-card .arrow {
+    position: absolute;
+    bottom: 22px;
+    right: 22px;
+    color: var(--accent);
+    font-size: 16px;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: all 0.2s ease;
+  }
+  .tool-card:hover .arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .tool-card .pending {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 11px;
+    color: var(--text-3);
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+  }
+  footer .mono {
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
+  @media (max-width: 640px) {
+    .page { padding: 40px 18px 32px; }
+    .brand { margin-bottom: 48px; }
+    .brand h1 { font-size: 32px; }
+    .tools-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .tool-card {
+      min-height: auto;
+      padding: 20px;
+    }
+    .tool-card .name { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="brand">
+    <h1>Shadow's <em>Workspace</em></h1>
+    <div class="sub">Tools · Records · Workflow</div>
+  </div>
+
+  <div class="section-label">Active Tools</div>
+  <div class="tools-grid">
+    <a href="ledger.html" class="tool-card">
+      <div class="label">Finance</div>
+      <div class="name">客戶接案<em>管理表</em></div>
+      <div class="desc">月份/年度收支、工時、扣繳稅務、客戶總覽。雲端同步,跨裝置共用。</div>
+      <div class="arrow">→</div>
+    </a>
+
+    <div class="tool-card disabled">
+      <div class="label">Production</div>
+      <div class="name">多專案<em>甘特圖</em></div>
+      <div class="desc">時間軸排程、任務管理、依賴關係。</div>
+      <div class="pending">即將推出 · Coming Soon</div>
+    </div>
+
+    <div class="tool-card disabled">
+      <div class="label">Archive</div>
+      <div class="name">硬碟<em>紀錄</em></div>
+      <div class="desc">硬碟內容索引、檔案存放位置追蹤。</div>
+      <div class="pending">規劃中 · Planned</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Shadow's Workspace · Built with <span style="color:var(--accent)">♥</span> &amp; Claude
+  <br>
+  <span class="mono" id="version">v1.0</span>
+</footer>
+</body>
+</html>
