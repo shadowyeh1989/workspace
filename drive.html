@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="硬碟管理">
+<meta name="theme-color" content="#0e0e10">
+<link rel="icon" type="image/x-icon" href="icons/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>硬碟備份清單</title>
+<script>
+  // Apply saved theme before page renders to prevent flash (shared with ledger / gantt / index)
+  (function() {
+    try {
+      var saved = localStorage.getItem('shadow_ledger_theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+        return;
+      }
+    } catch (e) {}
+    var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    document.documentElement.setAttribute('data-theme', prefersLight ? 'light' : 'dark');
+  })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root, html[data-theme="dark"] {
+    --bg: #0e0e10;
+    --surface: #18181b;
+    --surface-2: #232327;
+    --surface-hover: #2a2a2f;
+    --ink: #ededee;
+    --muted: #a1a1a6;
+    --faint: #6e6e73;
+    --accent: #d4a05c;
+    --accent-soft: #6b5234;
+    --border: #2e2e33;
+    --danger: #c87f7f;
+    --danger-bg: #4a2828;
+    --success: #6a9c6a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    --mono: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+    --sans: 'Noto Sans TC', "PingFang TC", "Heiti TC", "Microsoft JhengHei", -apple-system, system-ui, sans-serif;
+    --serif: 'Iowan Old Style', 'Charter', Georgia, serif;
+  }
+  html[data-theme="light"] {
+    --bg: #faf8f3;
+    --surface: #ffffff;
+    --surface-2: #f1ede4;
+    --surface-hover: #ebe6da;
+    --ink: #2a2620;
+    --muted: #5e5849;
+    --faint: #8a8270;
+    --accent: #a87434;
+    --accent-soft: #ecdcc4;
+    --border: #d8d2c4;
+    --danger: #a04848;
+    --danger-bg: #f4dada;
+    --success: #4a7a4a;
+    --shadow: 0 1px 2px rgba(60,50,35,.06), 0 6px 20px rgba(60,50,35,.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    padding: 0 0 80px;
+    transition: background .3s, color .3s;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 50;
+    box-shadow: var(--shadow);
+  }
+  .head-inner {
+    max-width: 1100px; margin: 0 auto; padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+  .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: .5px; }
+  .brand .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); letter-spacing: 1px; }
+  .head-actions { display: flex; gap: 8px; align-items: center; }
+  button, .btn {
+    font-family: var(--sans); font-size: 13px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--ink); padding: 8px 14px; border-radius: 8px;
+    transition: all .15s; white-space: nowrap;
+  }
+  button:hover, .btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { filter: brightness(1.08); color: #fff; }
+  button.ghost { background: transparent; }
+  button.tiny { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
+  button.danger:hover { border-color: #c0392b; color: #c0392b; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; padding: 14px 0 0; }
+  .tab {
+    padding: 9px 18px; border: none; border-bottom: 2px solid transparent;
+    background: transparent; border-radius: 0; font-size: 14px; color: var(--muted);
+  }
+  .tab:hover { color: var(--ink); border-color: transparent; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  /* Stats */
+  .stats { display: flex; gap: 14px; margin: 22px 0; flex-wrap: wrap; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; min-width: 120px; box-shadow: var(--shadow);
+  }
+  .stat .n { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--accent); }
+  .stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Quick add */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow); padding: 20px;
+  }
+  .card h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin-bottom: 14px; letter-spacing: .5px; }
+  .add-grid {
+    display: grid; grid-template-columns: 1.1fr 1.4fr 1fr .7fr auto; gap: 10px; align-items: end;
+  }
+  .add-grid.grid4 { grid-template-columns: 1.6fr 1fr .8fr auto; }
+  @media (max-width: 820px){ .add-grid, .add-grid.grid4 { grid-template-columns: 1fr 1fr; } }
+  /* company chips */
+  .chip-area { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip {
+    padding: 6px 13px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--ink); cursor: pointer; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 7px; transition: all .15s; user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip.muted { background: var(--bg); color: var(--muted); border-style: dashed; }
+  .chip .acts { display: inline-flex; gap: 5px; align-items: center; max-width: 0; overflow: hidden; opacity: 0; transition: all .15s; }
+  .chip:hover .acts { max-width: 60px; opacity: 1; margin-right: -3px; }
+  .chip .ic { font-size: 13px; line-height: 1; color: var(--faint); cursor: pointer; }
+  .chip .ic:hover { color: var(--accent); }
+  .chip .ic.del:hover { color: #c0392b; }
+  .chip.sel .ic { color: rgba(255,255,255,.75); }
+  .chip-add { border-style: dashed; color: var(--muted); }
+  .chip-add:hover { color: var(--accent); }
+  .chip-input { width: 150px; padding: 6px 11px; border-radius: 20px; font-size: 13px; }
+  .chip-hint { font-size: 12px; color: var(--faint); }
+  .chip-toggle { font-size: 12px; color: var(--muted); cursor: pointer; padding: 6px 4px; user-select: none; white-space: nowrap; }
+  .chip-toggle:hover { color: var(--accent); }
+  .bulk-link { font-size: 12px; color: var(--faint); cursor: pointer; padding: 6px 4px; text-decoration: underline; text-underline-offset: 2px; }
+  .bulk-link:hover { color: var(--accent); }
+  .hidden-wrap { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 10px; margin-top: 4px; border-top: 1px dashed var(--border); }
+  .hidden-wrap .label { font-size: 11px; color: var(--faint); width: 100%; margin-bottom: -2px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11px; color: var(--muted); letter-spacing: .5px; }
+  input, select, textarea {
+    font-family: var(--sans); font-size: 14px; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 11px; width: 100%; transition: border .15s;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  input[type=date] { font-family: var(--mono); }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; margin: 22px 0 12px; flex-wrap: wrap; align-items: center; }
+  .toolbar .search { flex: 1; min-width: 200px; }
+  .toolbar select { width: auto; }
+
+  /* Table */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11px; color: var(--muted); font-weight: 600;
+    letter-spacing: .8px; padding: 12px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  th:hover { color: var(--accent); }
+  th .arrow { font-size: 9px; opacity: .6; }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface-2); }
+  .col-date { font-family: var(--mono); font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .col-proj { font-weight: 600; }
+  .col-size { font-family: var(--mono); color: var(--muted); }
+  .col-note { color: var(--muted); font-size: 13px; max-width: 200px; }
+  .row-actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
+  tr:hover .row-actions { opacity: 1; }
+
+  /* Drive tag */
+  .dtag {
+    display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono);
+    font-size: 12px; padding: 3px 9px; border-radius: 20px; background: var(--surface-2);
+    border: 1px solid var(--border); white-space: nowrap;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Drive cards */
+  .drive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .drive-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+  .drive-card .dc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .drive-card .dc-name { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+  .drive-card .dc-meta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .drive-card .dc-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+  .drive-card .dc-list li { font-size: 13px; padding: 5px 0; border-bottom: 1px dashed var(--border); display: flex; justify-content: space-between; gap: 8px; }
+  .drive-card .dc-list li span.co { color: var(--muted); font-size: 11px; }
+  .drive-card .dc-actions { margin-top: 12px; display: flex; gap: 6px; }
+  .cap-block { margin: 4px 0 14px; }
+  .cap-nums { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+  .cap-nums .used { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+  .cap-nums .rem { font-family: var(--mono); color: var(--muted); }
+  .cap-nums .rem b { color: var(--accent); font-weight: 700; }
+  .cap-bar { height: 8px; border-radius: 6px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--border); }
+  .cap-fill { height: 100%; border-radius: 6px; transition: width .4s ease; }
+  .cap-fill.ok { background: #3a7d44; }
+  .cap-fill.warn { background: #c79a26; }
+  .cap-fill.full { background: #c0392b; }
+  .cap-note { font-size: 11px; color: var(--faint); margin-top: 5px; }
+
+  .empty { text-align: center; padding: 50px 20px; color: var(--faint); }
+  .empty .big { font-size: 40px; margin-bottom: 10px; opacity: .5; }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(20,16,10,.45); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+  .overlay.show { display: flex; }
+  .modal { background: var(--surface); border-radius: 16px; padding: 26px; max-width: 440px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  .modal h3 { font-size: 17px; margin-bottom: 18px; }
+  .modal .field { margin-bottom: 14px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+  .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .color-swatch { width: 28px; height: 28px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; }
+  .color-swatch.sel { border-color: var(--ink); transform: scale(1.1); }
+
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--bg); padding: 12px 22px; border-radius: 10px;
+    font-size: 14px; opacity: 0; transition: all .25s; z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .hidden { display: none !important; }
+
+  /* backup badge + menu */
+  .backup-wrap { position: relative; }
+  .backup-badge { display: inline-flex; align-items: center; gap: 7px; }
+  .backup-badge .bdot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex-shrink: 0; }
+  .backup-badge.b-fresh { border-color: var(--border); }
+  .backup-badge.b-fresh .bdot { background: #9aa0a6; }
+  .backup-badge.b-warn { border-color: #c79a26; color: #a87f17; }
+  .backup-badge.b-warn .bdot { background: #c79a26; }
+  .backup-badge.b-stale { border-color: #c0392b; color: #c0392b; }
+  .backup-badge.b-stale .bdot { background: #c0392b; }
+  .backup-badge.b-auto { border-color: #3a7d44; color: #2e6b38; }
+  .backup-badge.b-auto .bdot { background: #3a7d44; animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(58,125,68,.5)} 70%{box-shadow:0 0 0 6px rgba(58,125,68,0)} 100%{box-shadow:0 0 0 0 rgba(58,125,68,0)} }
+  .backup-menu {
+    position: absolute; top: calc(100% + 8px); right: 0; width: 290px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 12px 36px rgba(0,0,0,.18); padding: 14px; z-index: 80; display: none;
+  }
+  .backup-menu.show { display: block; }
+  .bm-status { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .bm-status b { color: var(--ink); }
+  .bm-btn {
+    display: block; width: 100%; text-align: left; margin-bottom: 8px; font-size: 13px;
+  }
+  .bm-btn.danger:hover { border-color: #c0392b; color: #c0392b; }
+  .bm-div { height: 1px; background: var(--border); margin: 12px 0; }
+  .bm-ok { font-size: 13px; color: #2e6b38; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .bm-note { font-size: 12px; color: var(--faint); line-height: 1.6; margin: 6px 0 10px; }
+
+  /* Brand back link */
+  .brand-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--faint);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-decoration: none;
+    margin-bottom: 4px;
+    width: fit-content;
+    transition: color 0.15s;
+  }
+  .brand-back:hover { color: var(--accent); }
+  .brand-back .arrow { transition: transform 0.15s; display: inline-block; }
+  .brand-back:hover .arrow { transform: translateX(-2px); }
+  .brand-block { display: flex; flex-direction: column; gap: 0; margin-right: auto; }
+  .brand-block .row { display: flex; align-items: baseline; gap: 10px; }
+  .brand-block h1 { font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: 0.02em; }
+  .brand-block h1 em { color: var(--accent); font-style: italic; font-weight: 400; }
+  .brand-block .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); letter-spacing: 1px; }
+
+  /* Auth gate */
+  .auth-gate {
+    position: fixed; inset: 0; background: var(--bg); z-index: 1000;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .auth-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 32px 28px; width: 100%; max-width: 380px; box-shadow: var(--shadow);
+  }
+  .auth-title { font-family: var(--serif); font-size: 22px; margin: 0 0 4px; font-weight: 500; }
+  .auth-title em { color: var(--accent); font-style: italic; font-weight: 400; }
+  .auth-sub { font-size: 11px; color: var(--faint); letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 22px; }
+  .auth-field { margin-bottom: 14px; }
+  .auth-field label {
+    display: block; font-size: 11px; color: var(--faint);
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .auth-field input {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--ink); padding: 10px 12px; border-radius: 7px; font-size: 14px; font-family: var(--sans);
+  }
+  .auth-field input:focus { outline: none; border-color: var(--accent); }
+  .auth-submit {
+    width: 100%; background: var(--accent); color: var(--bg); border: none;
+    padding: 11px; border-radius: 7px; font-size: 14px; font-weight: 500;
+    cursor: pointer; font-family: var(--sans); margin-top: 6px;
+  }
+  .auth-submit:hover { opacity: 0.85; }
+  .auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-mode-switch { text-align: center; margin-top: 14px; font-size: 12px; color: var(--faint); }
+  .auth-mode-switch a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .auth-error {
+    background: var(--danger-bg); color: var(--danger); padding: 10px 12px;
+    border-radius: 6px; font-size: 12px; margin-bottom: 12px; display: none; border: 1px solid var(--danger);
+  }
+  .auth-error.show { display: block; }
+  .auth-offline {
+    background: var(--surface-2); color: var(--faint); padding: 8px 12px;
+    border-radius: 6px; font-size: 11px; margin-top: 12px; text-align: center;
+    border: 1px solid var(--border); cursor: pointer;
+  }
+  .auth-offline:hover { color: var(--muted); }
+  .auth-back {
+    font-size: 10px; color: var(--faint); letter-spacing: 0.18em;
+    text-transform: uppercase; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 5px; margin-bottom: 14px;
+  }
+  .auth-back:hover { color: var(--accent); }
+
+  /* Migration dialog */
+  .migration-dialog {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 800;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .migration-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; max-width: 440px; width: 100%;
+  }
+  .migration-title { font-family: var(--serif); font-style: italic; font-size: 18px; margin: 0 0 8px; font-weight: 500; }
+  .migration-text { font-size: 13px; color: var(--muted); line-height: 1.65; margin-bottom: 20px; }
+  .migration-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* User pill */
+  .user-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 4px 4px 12px; border-radius: 999px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    font-size: 11.5px; color: var(--muted); cursor: pointer;
+    position: relative; transition: all 0.15s;
+  }
+  .user-pill:hover { background: var(--surface-hover); }
+  .user-pill .email {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .user-pill .sync-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .user-pill .sync-dot.synced { background: var(--success); }
+  .user-pill .sync-dot.syncing { background: var(--accent); animation: pulseDot 1.2s ease-in-out infinite; }
+  .user-pill .sync-dot.offline { background: var(--faint); }
+  .user-pill .sync-dot.error { background: var(--danger); }
+  .user-pill .chev { color: var(--faint); font-size: 9px; padding: 0 4px; }
+  @keyframes pulseDot { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+  .user-menu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 6px; min-width: 240px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4); z-index: 200;
+  }
+  .user-menu-info { padding: 10px 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .user-menu-email { font-family: var(--mono); font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .user-menu-status { font-size: 11px; color: var(--faint); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+  .user-menu-item {
+    padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    color: var(--ink); display: flex; align-items: center; gap: 8px;
+  }
+  .user-menu-item:hover { background: var(--surface-hover); }
+  .user-menu-item.danger { color: var(--danger); }
+  .user-menu-item.danger:hover { background: var(--danger-bg); }
+  .user-menu-item.accent { color: var(--accent); }
+  .user-menu-item.accent:hover { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+
+<!-- Auth gate -->
+<div class="auth-gate" id="authGate" style="display:none">
+  <div class="auth-card">
+    <a href="index.html" class="auth-back"><span>←</span><span>Workspace</span></a>
+    <h1 class="auth-title">硬碟<em>備份清單</em></h1>
+    <div class="auth-sub">DRIVE · ARCHIVE · LEDGER</div>
+    <div class="auth-error" id="authError"></div>
+    <form id="authForm">
+      <div class="auth-field">
+        <label for="authEmail">Email</label>
+        <input type="email" id="authEmail" autocomplete="email" required>
+      </div>
+      <div class="auth-field">
+        <label for="authPassword">密碼</label>
+        <input type="password" id="authPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="auth-submit" id="authSubmit">登入</button>
+    </form>
+    <div class="auth-mode-switch">
+      <span id="authModeText">還沒有帳號?</span>
+      <a id="authModeSwitch">註冊新帳號</a>
+    </div>
+    <div class="auth-offline" id="authOfflineBtn">⏏ 離線使用 (僅本機 · 不同步)</div>
+  </div>
+</div>
+
+<!-- Migration dialog -->
+<div class="migration-dialog" id="migrationDialog" style="display:none">
+  <div class="migration-card">
+    <h2 class="migration-title">偵測到本機已有資料</h2>
+    <div class="migration-text">
+      你的瀏覽器中有過去儲存的硬碟備份紀錄,而雲端帳號目前是空的。<br><br>
+      要把本機資料<strong style="color:var(--ink)">上傳到雲端</strong>嗎?上傳後其他裝置就能看到。
+    </div>
+    <div class="migration-actions">
+      <button class="ghost" id="migrationSkipBtn">略過 · 使用雲端 (空)</button>
+      <button class="primary" id="migrationUploadBtn">上傳本機資料到雲端</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="head-inner">
+    <div class="brand-block">
+      <a href="index.html" class="brand-back"><span class="arrow">←</span><span>Workspace</span></a>
+      <div class="row">
+        <h1>硬碟<em>備份清單</em></h1>
+        <span class="sub">BACKUP LEDGER</span>
+      </div>
+    </div>
+    <div class="head-actions">
+      <div id="userPillWrap" style="position:relative;display:none">
+        <div id="userPill" class="user-pill" onclick="toggleUserMenu(event)">
+          <span class="sync-dot offline" id="userSyncDot"></span>
+          <span class="email" id="userEmail"></span>
+          <span class="chev">▾</span>
+        </div>
+        <div id="userMenu" class="user-menu" style="display:none"></div>
+      </div>
+      <div class="backup-wrap">
+        <button class="ghost backup-badge" id="backupBadge" onclick="toggleBackupMenu(event)"><span class="bdot"></span>備份</button>
+        <div class="backup-menu" id="backupMenu"></div>
+      </div>
+      <button class="ghost" onclick="exportCSV()">匯出 CSV</button>
+      <button class="ghost" onclick="document.getElementById('importer').click()">還原 JSON</button>
+      <input type="file" id="importer" accept=".json" class="hidden" onchange="importJSON(event)">
+      <button class="ghost" id="themeBtn" onclick="toggleTheme()">🌙</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab active" id="tab-records" onclick="switchTab('records')">備份紀錄</button>
+      <button class="tab" id="tab-drives" onclick="switchTab('drives')">硬碟管理</button>
+      <button class="tab" id="tab-byDrive" onclick="switchTab('byDrive')">依硬碟檢視</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- RECORDS -->
+  <section id="view-records">
+    <div class="stats" id="stats"></div>
+
+    <div class="card">
+      <h2>新增一筆備份</h2>
+      <div class="field" style="margin-bottom:14px;">
+        <label>客戶</label>
+        <div class="chip-area" id="company-chips"></div>
+      </div>
+      <div class="add-grid grid4">
+        <div class="field">
+          <label>案件名稱</label>
+          <input id="f-project" placeholder="例如：XX 醫師形象照">
+        </div>
+        <div class="field">
+          <label>備份到哪顆硬碟</label>
+          <select id="f-drive"></select>
+        </div>
+        <div class="field">
+          <label>日期</label>
+          <input id="f-date" type="date">
+        </div>
+        <div class="field" style="grid-column: auto;">
+          <label>&nbsp;</label>
+          <button class="primary" onclick="addRecord()">＋ 新增</button>
+        </div>
+      </div>
+      <div class="add-grid" style="margin-top:10px; grid-template-columns: 1fr 2fr;">
+        <div class="field">
+          <label>容量 / 大小（選填）</label>
+          <input id="f-size" placeholder="例如：248 GB">
+        </div>
+        <div class="field">
+          <label>備註（選填）</label>
+          <input id="f-note" placeholder="原始檔 / 成品 / 工程檔…">
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input class="search" id="search" placeholder="🔍 搜尋公司、案名、備註…" oninput="render()">
+      <select id="filter-drive" onchange="render()"><option value="">全部硬碟</option></select>
+    </div>
+
+    <div class="table-wrap" id="table-wrap"></div>
+  </section>
+
+  <!-- DRIVES -->
+  <section id="view-drives" class="hidden">
+    <div class="toolbar" style="justify-content: space-between;">
+      <h2 style="font-size:15px; color:var(--ink); font-weight:600;">我的硬碟</h2>
+      <button class="primary" onclick="openDriveModal()">＋ 新增硬碟</button>
+    </div>
+    <div class="drive-grid" id="drive-mgmt"></div>
+  </section>
+
+  <!-- BY DRIVE -->
+  <section id="view-byDrive" class="hidden">
+    <div class="drive-grid" id="by-drive"></div>
+  </section>
+
+</div>
+
+<!-- Drive modal -->
+<div class="overlay" id="drive-overlay">
+  <div class="modal">
+    <h3 id="drive-modal-title">新增硬碟</h3>
+    <div class="field">
+      <label>硬碟代號 / 名稱</label>
+      <input id="d-name" placeholder="例如：HDD-01、WD-4TB-A">
+    </div>
+    <div class="field">
+      <label>總容量（填了才能算剩餘空間，例如 4 TB）</label>
+      <input id="d-cap" placeholder="例如：4 TB">
+    </div>
+    <div class="field">
+      <label>備註（選填）</label>
+      <input id="d-note" placeholder="放在哪、用途…">
+    </div>
+    <div class="field">
+      <label>標籤顏色</label>
+      <div class="color-row" id="color-row"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeDriveModal()">取消</button>
+      <button class="primary" onclick="saveDrive()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ["#b5562a","#3a7d44","#2f6f9f","#9b4dca","#c79a26","#c0392b","#1f8a8a","#7a6a55"];
+const STORE = "backupLedger.v1";
+
+let state = { drives: [], records: [], clients: [], hiddenClients: [], theme: "light", lastBackupAt: null };
+let sortKey = "date", sortDir = -1;
+let editingDriveId = null, pickedColor = COLORS[0];
+let selectedCompany = "";
+let addingClient = false;
+// auto-backup (in-memory; re-authorize each time the file is reopened)
+let dirHandle = null, autoBackupOn = false, autoBackupTimer = null;
+const AUTO_FILE = "備份硬碟清單_自動備份.json";
+
+/* ---------- persistence ---------- */
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (raw) state = Object.assign(state, JSON.parse(raw));
+  } catch(e) { console.warn(e); }
+  if (state.drives.length === 0) {
+    // seed one example drive so the dropdown isn't empty
+    state.drives.push({ id: uid(), name: "HDD-01", cap: "", note: "", color: COLORS[0] });
+  }
+  if (!Array.isArray(state.clients)) state.clients = [];
+  if (!Array.isArray(state.hiddenClients)) state.hiddenClients = [];
+  // merge any company names already used in records into the clients list
+  for (const r of state.records) {
+    if (r.company && !state.clients.includes(r.company)) state.clients.push(r.company);
+  }
+  // Honor shared theme key (set by other tools or by pre-paint script)
+  try {
+    const shared = localStorage.getItem('shadow_ledger_theme');
+    if (shared === 'light' || shared === 'dark') state.theme = shared;
+  } catch(e) {}
+  document.documentElement.setAttribute("data-theme", state.theme);
+  document.getElementById("themeBtn").textContent = state.theme === "dark" ? "☀️" : "🌙";
+}
+function persist() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); }
+  catch(e) { toast("⚠️ 無法儲存，請改用「立即備份」匯出"); }
+}
+function save() { persist(); scheduleAutoBackup(); updateBackupBadge(); scheduleCloudSync(); }
+function markBackup() { state.lastBackupAt = Date.now(); persist(); updateBackupBadge(); renderBackupMenu(); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+/* ---------- helpers ---------- */
+function driveById(id){ return state.drives.find(d => d.id === id); }
+
+/* parse free-text size into GB (decimal: 1 TB = 1000 GB). Returns number or null. */
+function parseSize(str){
+  if(!str) return null;
+  const m = String(str).replace(/,/g,"").match(/([\d.]+)\s*(tb|t|gb|g|mb|m)?/i);
+  if(!m) return null;
+  const val = parseFloat(m[1]);
+  if(isNaN(val)) return null;
+  const unit = (m[2]||"g").toLowerCase();
+  if(unit[0]==="t") return val * 1000;
+  if(unit[0]==="m") return val / 1000;
+  return val; // gb (also the bare-number default)
+}
+/* format GB number into a tidy string */
+function fmtSize(gb){
+  if(gb==null || isNaN(gb)) return "—";
+  if(gb >= 1000){ const t = gb/1000; return (Math.round(t*100)/100) + " TB"; }
+  if(gb < 1){ return Math.round(gb*1000) + " MB"; }
+  return (Math.round(gb*10)/10) + " GB";
+}
+/* compute usage for one drive */
+function driveUsage(driveId){
+  const d = driveById(driveId);
+  const recs = state.records.filter(r=>r.driveId===driveId);
+  let used = 0, unparsed = 0, withSize = 0;
+  for(const r of recs){
+    if(!r.size){ continue; }
+    withSize++;
+    const g = parseSize(r.size);
+    if(g==null) unparsed++; else used += g;
+  }
+  const total = d ? parseSize(d.cap) : null;
+  const rem = (total!=null) ? total - used : null;
+  const pct = (total!=null && total>0) ? Math.min(100, (used/total)*100) : null;
+  return { used, total, rem, pct, unparsed };
+}
+/* HTML for the capacity bar of a drive */
+function capBlock(driveId){
+  const u = driveUsage(driveId);
+  if(u.total==null){
+    return `<div class="cap-block"><div class="cap-note">已用約 ${fmtSize(u.used)}（未填總容量，無法計算剩餘 — 編輯硬碟填「容量」即可）</div></div>`;
+  }
+  let cls = "ok";
+  if(u.pct >= 95) cls = "full"; else if(u.pct >= 85) cls = "warn";
+  const remTxt = u.rem < 0
+    ? `<b style="color:#c0392b">超出 ${fmtSize(-u.rem)}</b>`
+    : `剩 <b>${fmtSize(u.rem)}</b>`;
+  const note = u.unparsed>0 ? `<div class="cap-note">有 ${u.unparsed} 筆的大小無法辨識，未計入</div>` : "";
+  return `<div class="cap-block">
+    <div class="cap-nums">
+      <span class="used">已用 ${fmtSize(u.used)} / ${fmtSize(u.total)}</span>
+      <span class="rem">${remTxt}（${Math.round(u.pct)}%）</span>
+    </div>
+    <div class="cap-bar"><div class="cap-fill ${cls}" style="width:${u.pct}%"></div></div>
+    ${note}
+  </div>`;
+}
+function esc(s){ return (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+
+/* ---------- tabs / theme ---------- */
+function switchTab(tab){
+  ["records","drives","byDrive"].forEach(t=>{
+    document.getElementById("view-"+t).classList.toggle("hidden", t!==tab);
+    document.getElementById("tab-"+t).classList.toggle("active", t===tab);
+  });
+  if(tab==="drives") renderDriveMgmt();
+  if(tab==="byDrive") renderByDrive();
+}
+function toggleTheme(){
+  state.theme = state.theme === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", state.theme);
+  document.getElementById("themeBtn").textContent = state.theme === "dark" ? "☀️" : "🌙";
+  // Persist to shared key so all tools sync
+  try { localStorage.setItem('shadow_ledger_theme', state.theme); } catch(e){}
+  // Update meta theme-color
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', state.theme === 'light' ? '#faf8f3' : '#0e0e10');
+  save();
+}
+
+/* ---------- records ---------- */
+function addRecord(){
+  const company = selectedCompany;
+  const project = document.getElementById("f-project").value.trim();
+  const driveId = document.getElementById("f-drive").value;
+  const date = document.getElementById("f-date").value || todayStr();
+  const size = document.getElementById("f-size").value.trim();
+  const note = document.getElementById("f-note").value.trim();
+  if(!project){ toast("⚠️ 請至少填寫案件名稱"); document.getElementById("f-project").focus(); return; }
+  if(!driveId){ toast("⚠️ 請先到「硬碟管理」新增硬碟"); return; }
+  state.records.push({ id: uid(), company, project, driveId, date, size, note, createdAt: Date.now() });
+  if(company && !state.clients.includes(company)) state.clients.push(company);
+  save();
+  // keep drive + date + selected client, clear the rest for fast repeated entry
+  document.getElementById("f-project").value = "";
+  document.getElementById("f-size").value = "";
+  document.getElementById("f-note").value = "";
+  document.getElementById("f-project").focus();
+  refreshAll();
+  toast("✓ 已新增備份紀錄");
+}
+function deleteRecord(id){
+  const r = state.records.find(x=>x.id===id);
+  if(!confirm("刪除這筆紀錄？\n"+(r?r.project:""))) return;
+  state.records = state.records.filter(x=>x.id!==id);
+  save(); refreshAll(); toast("已刪除");
+}
+function editRecord(id){
+  const r = state.records.find(x=>x.id===id); if(!r) return;
+  selectedCompany = r.company || "";
+  if(selectedCompany && !state.clients.includes(selectedCompany)) state.clients.push(selectedCompany);
+  document.getElementById("f-project").value = r.project;
+  document.getElementById("f-drive").value = r.driveId;
+  document.getElementById("f-date").value = r.date;
+  document.getElementById("f-size").value = r.size || "";
+  document.getElementById("f-note").value = r.note || "";
+  state.records = state.records.filter(x=>x.id!==id);
+  save(); refreshAll();
+  window.scrollTo({top:0,behavior:"smooth"});
+  toast("已載入到表單，修改後按新增即可");
+}
+function setSort(key){
+  if(sortKey===key) sortDir*=-1; else { sortKey=key; sortDir=1; }
+  render();
+}
+
+function getFiltered(){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const fd = document.getElementById("filter-drive").value;
+  let rows = state.records.slice();
+  if(fd) rows = rows.filter(r=>r.driveId===fd);
+  if(q) rows = rows.filter(r=>{
+    const dn = (driveById(r.driveId)||{}).name || "";
+    return (r.company+" "+r.project+" "+r.note+" "+dn).toLowerCase().includes(q);
+  });
+  rows.sort((a,b)=>{
+    let va,vb;
+    if(sortKey==="drive"){ va=(driveById(a.driveId)||{}).name||""; vb=(driveById(b.driveId)||{}).name||""; }
+    else { va=a[sortKey]||""; vb=b[sortKey]||""; }
+    return (va<vb?-1:va>vb?1:0)*sortDir;
+  });
+  return rows;
+}
+
+function arrow(key){ return sortKey===key ? `<span class="arrow">${sortDir>0?"▲":"▼"}</span>` : ""; }
+
+function render(){
+  const rows = getFiltered();
+  const wrap = document.getElementById("table-wrap");
+  if(state.records.length===0){
+    wrap.innerHTML = `<div class="empty"><div class="big">🗄️</div>還沒有任何備份紀錄。<br>在上面填一筆，按「新增」開始。</div>`;
+    renderStats(); return;
+  }
+  if(rows.length===0){ wrap.innerHTML = `<div class="empty">沒有符合條件的紀錄。</div>`; renderStats(); return; }
+  let html = `<table><thead><tr>
+    <th onclick="setSort('date')">日期 ${arrow("date")}</th>
+    <th onclick="setSort('company')">公司 ${arrow("company")}</th>
+    <th onclick="setSort('project')">案件名稱 ${arrow("project")}</th>
+    <th onclick="setSort('drive')">硬碟 ${arrow("drive")}</th>
+    <th>大小</th><th>備註</th><th></th>
+  </tr></thead><tbody>`;
+  for(const r of rows){
+    const d = driveById(r.driveId) || {name:"(已刪除)", color:"#999"};
+    html += `<tr>
+      <td class="col-date">${esc(r.date)}</td>
+      <td>${esc(r.company)||'<span style="color:var(--faint)">—</span>'}</td>
+      <td class="col-proj">${esc(r.project)}</td>
+      <td><span class="dtag"><span class="dot" style="background:${d.color}"></span>${esc(d.name)}</span></td>
+      <td class="col-size">${esc(r.size)||""}</td>
+      <td class="col-note">${esc(r.note)||""}</td>
+      <td><div class="row-actions">
+        <button class="tiny ghost" onclick="editRecord('${r.id}')">編輯</button>
+        <button class="tiny ghost danger" onclick="deleteRecord('${r.id}')">刪除</button>
+      </div></td>
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+  renderStats();
+}
+
+function renderStats(){
+  const totalSize = ""; // free text sizes, skip summation
+  const el = document.getElementById("stats");
+  el.innerHTML = `
+    <div class="stat"><div class="n">${state.records.length}</div><div class="l">備份紀錄</div></div>
+    <div class="stat"><div class="n">${state.drives.length}</div><div class="l">硬碟數量</div></div>
+    <div class="stat"><div class="n">${new Set(state.records.map(r=>r.company).filter(Boolean)).size}</div><div class="l">客戶數</div></div>
+    <div class="stat"><div class="n">${new Set(state.records.map(r=>r.project)).size}</div><div class="l">案件數</div></div>`;
+}
+
+/* ---------- drive dropdowns ---------- */
+function refreshDriveSelectors(){
+  const sel = document.getElementById("f-drive");
+  const filt = document.getElementById("filter-drive");
+  const prev = sel.value;
+  const prevFilt = filt.value;
+  sel.innerHTML = state.drives.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join("");
+  filt.innerHTML = `<option value="">全部硬碟</option>` + state.drives.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join("");
+  if(state.drives.find(d=>d.id===prev)) sel.value = prev;
+  if(prevFilt) filt.value = prevFilt;
+}
+
+/* ---------- company chips ---------- */
+let showHidden = false;
+
+function clientUsage(name){ return state.records.filter(r=>r.company===name).length; }
+function chipHTML(name, isHidden){
+  const safe = esc(name).replace(/'/g, "\\'");
+  const sel = name === selectedCompany ? "sel" : "";
+  const muted = isHidden ? "muted" : "";
+  const acts = isHidden
+    ? `<span class="ic" title="取消隱藏，移回主列" onclick="event.stopPropagation();unhideClient('${safe}')">↩</span>
+       <span class="ic del" title="從清單刪除" onclick="event.stopPropagation();removeClient('${safe}')">×</span>`
+    : `<span class="ic" title="隱藏（少用，可隨時找回）" onclick="event.stopPropagation();hideClient('${safe}')">⊘</span>`;
+  return `<span class="chip ${sel} ${muted}" onclick="selectCompany('${safe}')">${esc(name)}<span class="acts">${acts}</span></span>`;
+}
+function renderCompanyChips(){
+  const el = document.getElementById("company-chips");
+  const all = [...state.clients].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+  const hidden = new Set(state.hiddenClients);
+  // a hidden client stays in the main row while it's the current selection
+  const visible = all.filter(c => !hidden.has(c) || c === selectedCompany);
+  const hiddenList = all.filter(c => hidden.has(c) && c !== selectedCompany);
+
+  let html = visible.map(c => chipHTML(c, false)).join("");
+
+  if(addingClient){
+    html += `<input class="chip-input" id="new-client" placeholder="新客戶名稱…" autocomplete="off">`;
+  } else {
+    html += `<span class="chip chip-add" onclick="startAddClient()">＋ 新增客戶</span>`;
+  }
+
+  // one-click tidy: hide clients only ever used once (and not currently selected)
+  const rareVisible = visible.filter(c => clientUsage(c) <= 1 && c !== selectedCompany);
+  if(rareVisible.length >= 2 && !addingClient){
+    html += `<span class="bulk-link" onclick="bulkHideRare()">隱藏少用客戶（${rareVisible.length}）</span>`;
+  }
+
+  if(hiddenList.length){
+    html += `<span class="chip-toggle" onclick="toggleHidden()">${showHidden ? "－ 收合少用客戶" : "＋ 少用客戶（"+hiddenList.length+"）"}</span>`;
+  }
+  if(showHidden && hiddenList.length){
+    html += `<div class="hidden-wrap"><span class="label">少用客戶（點一下即可選用，↩ 移回主列）</span>` +
+      hiddenList.map(c => chipHTML(c, true)).join("") + `</div>`;
+  }
+
+  if(all.length===0 && !addingClient){
+    html += `<span class="chip-hint">還沒有客戶，按「＋ 新增客戶」加第一個（之後點一下就能選）</span>`;
+  }
+  el.innerHTML = html;
+
+  if(addingClient){
+    const inp = document.getElementById("new-client");
+    inp.focus();
+    inp.addEventListener("keydown", e=>{
+      if(e.key==="Enter") commitNewClient();
+      if(e.key==="Escape"){ addingClient=false; renderCompanyChips(); }
+    });
+    inp.addEventListener("blur", ()=>{ setTimeout(commitNewClient, 120); });
+  }
+}
+function selectCompany(name){
+  selectedCompany = (selectedCompany===name) ? "" : name; // click again to deselect
+  renderCompanyChips();
+}
+function hideClient(name){
+  if(!state.hiddenClients.includes(name)) state.hiddenClients.push(name);
+  save(); renderCompanyChips();
+}
+function unhideClient(name){
+  state.hiddenClients = state.hiddenClients.filter(c=>c!==name);
+  save(); renderCompanyChips();
+}
+function toggleHidden(){ showHidden = !showHidden; renderCompanyChips(); }
+function bulkHideRare(){
+  const hidden = new Set(state.hiddenClients);
+  const targets = state.clients.filter(c => !hidden.has(c) && c !== selectedCompany && clientUsage(c) <= 1);
+  if(targets.length===0){ toast("沒有可隱藏的少用客戶"); return; }
+  if(!confirm(`把 ${targets.length} 個只用過一次（或還沒用過）的客戶收進「少用客戶」抽屜？\n（不是刪除，隨時可以展開找回）`)) return;
+  targets.forEach(c=>state.hiddenClients.push(c));
+  save(); renderCompanyChips();
+  toast(`✓ 已收起 ${targets.length} 個少用客戶`);
+}
+function startAddClient(){ addingClient = true; renderCompanyChips(); }
+function commitNewClient(){
+  if(!addingClient) return;
+  const inp = document.getElementById("new-client");
+  const name = inp ? inp.value.trim() : "";
+  addingClient = false;
+  if(name){
+    if(!state.clients.includes(name)) state.clients.push(name);
+    state.hiddenClients = state.hiddenClients.filter(c=>c!==name); // a freshly added client should be visible
+    selectedCompany = name;
+    save();
+  }
+  renderCompanyChips();
+}
+function removeClient(name){
+  const used = state.records.some(r=>r.company===name);
+  let msg = `把「${name}」從客戶標籤清單刪除？`;
+  if(used) msg += `\n（已建立的備份紀錄不會被刪除，只是之後不再出現這個快選標籤）`;
+  if(!confirm(msg)) return;
+  state.clients = state.clients.filter(c=>c!==name);
+  state.hiddenClients = state.hiddenClients.filter(c=>c!==name);
+  if(selectedCompany===name) selectedCompany = "";
+  save(); renderCompanyChips();
+}
+
+/* ---------- drive management ---------- */
+function renderDriveMgmt(){
+  const el = document.getElementById("drive-mgmt");
+  if(state.drives.length===0){ el.innerHTML = `<div class="empty">尚無硬碟，按右上角新增。</div>`; return; }
+  el.innerHTML = state.drives.map(d=>{
+    const count = state.records.filter(r=>r.driveId===d.id).length;
+    return `<div class="drive-card">
+      <div class="dc-head"><span class="dot" style="background:${d.color};width:12px;height:12px"></span>
+        <span class="dc-name">${esc(d.name)}</span></div>
+      <div class="dc-meta">${count} 筆紀錄${d.note?" · "+esc(d.note):""}</div>
+      ${capBlock(d.id)}
+      <div class="dc-actions">
+        <button class="tiny ghost" onclick="openDriveModal('${d.id}')">編輯</button>
+        <button class="tiny ghost danger" onclick="deleteDrive('${d.id}')">刪除</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+function openDriveModal(id){
+  editingDriveId = id || null;
+  const d = id ? driveById(id) : null;
+  document.getElementById("drive-modal-title").textContent = id ? "編輯硬碟" : "新增硬碟";
+  document.getElementById("d-name").value = d ? d.name : "";
+  document.getElementById("d-cap").value = d ? (d.cap||"") : "";
+  document.getElementById("d-note").value = d ? (d.note||"") : "";
+  pickedColor = d ? d.color : COLORS[state.drives.length % COLORS.length];
+  document.getElementById("color-row").innerHTML = COLORS.map(c=>
+    `<div class="color-swatch ${c===pickedColor?'sel':''}" style="background:${c}" onclick="pickColor('${c}',this)"></div>`).join("");
+  document.getElementById("drive-overlay").classList.add("show");
+  document.getElementById("d-name").focus();
+}
+function pickColor(c, el){ pickedColor=c; document.querySelectorAll(".color-swatch").forEach(s=>s.classList.remove("sel")); el.classList.add("sel"); }
+function closeDriveModal(){ document.getElementById("drive-overlay").classList.remove("show"); }
+function saveDrive(){
+  const name = document.getElementById("d-name").value.trim();
+  if(!name){ toast("⚠️ 請填寫硬碟名稱"); return; }
+  const cap = document.getElementById("d-cap").value.trim();
+  const note = document.getElementById("d-note").value.trim();
+  if(editingDriveId){
+    const d = driveById(editingDriveId);
+    Object.assign(d, {name, cap, note, color: pickedColor});
+  } else {
+    state.drives.push({ id: uid(), name, cap, note, color: pickedColor });
+  }
+  save(); closeDriveModal(); refreshAll(); renderDriveMgmt();
+  toast("✓ 已儲存硬碟");
+}
+function deleteDrive(id){
+  const count = state.records.filter(r=>r.driveId===id).length;
+  let msg = "確定刪除這顆硬碟？";
+  if(count>0) msg += `\n注意：有 ${count} 筆紀錄登記在這顆硬碟，刪除後那些紀錄會顯示「(已刪除)」。`;
+  if(!confirm(msg)) return;
+  state.drives = state.drives.filter(d=>d.id!==id);
+  save(); refreshAll(); renderDriveMgmt();
+  toast("已刪除硬碟");
+}
+
+/* ---------- by drive view ---------- */
+function renderByDrive(){
+  const el = document.getElementById("by-drive");
+  if(state.drives.length===0){ el.innerHTML = `<div class="empty">尚無硬碟。</div>`; return; }
+  el.innerHTML = state.drives.map(d=>{
+    const recs = state.records.filter(r=>r.driveId===d.id).sort((a,b)=>b.date<a.date?-1:1);
+    const items = recs.length ? recs.map(r=>
+      `<li><span>${esc(r.project)}${r.size?` <span class="co">(${esc(r.size)})</span>`:""}</span><span class="co">${esc(r.company)} · ${esc(r.date)}</span></li>`
+    ).join("") : `<li style="color:var(--faint);border:none">（尚無資料）</li>`;
+    return `<div class="drive-card">
+      <div class="dc-head"><span class="dot" style="background:${d.color};width:12px;height:12px"></span>
+        <span class="dc-name">${esc(d.name)}</span></div>
+      <div class="dc-meta">${recs.length} 筆${d.note?" · "+esc(d.note):""}</div>
+      ${capBlock(d.id)}
+      <ul class="dc-list">${items}</ul>
+    </div>`;
+  }).join("");
+}
+
+/* ---------- backup badge + auto-backup ---------- */
+const FS_SUPPORTED = (typeof window.showDirectoryPicker === "function");
+
+function relTime(ts){
+  const m = Math.floor((Date.now()-ts)/60000);
+  if(m < 1) return "剛剛備份";
+  if(m < 60) return `${m} 分鐘前備份`;
+  const h = Math.floor(m/60);
+  if(h < 24) return `${h} 小時前備份`;
+  const d = Math.floor(h/24);
+  return `${d} 天前備份`;
+}
+function updateBackupBadge(){
+  const b = document.getElementById("backupBadge");
+  if(!b) return;
+  b.classList.remove("b-fresh","b-warn","b-stale","b-auto");
+  const last = state.lastBackupAt;
+  if(autoBackupOn){
+    b.classList.add("b-auto");
+    b.innerHTML = `<span class="bdot"></span>${last?relTime(last):"自動備份中"}`;
+    return;
+  }
+  if(!last){ b.classList.add("b-warn"); b.innerHTML = `<span class="bdot"></span>尚未備份`; return; }
+  const days = Math.floor((Date.now()-last)/86400000);
+  let cls = "b-fresh", txt = days===0 ? "今日已備份" : `${days} 天前備份`;
+  if(days >= 14) cls = "b-stale"; else if(days >= 7) cls = "b-warn";
+  b.classList.add(cls);
+  b.innerHTML = `<span class="bdot"></span>${txt}`;
+}
+function toggleBackupMenu(e){
+  e.stopPropagation();
+  const m = document.getElementById("backupMenu");
+  const willShow = !m.classList.contains("show");
+  m.classList.toggle("show", willShow);
+  if(willShow) renderBackupMenu();
+}
+function renderBackupMenu(){
+  const m = document.getElementById("backupMenu");
+  if(!m) return;
+  const last = state.lastBackupAt;
+  const statusTxt = last
+    ? `上次備份：<b>${new Date(last).toLocaleString("zh-Hant",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b>`
+    : `<b>尚未做過備份</b>`;
+  let auto = "";
+  if(!FS_SUPPORTED){
+    auto = `<div class="bm-note">這個瀏覽器不支援自動寫入硬碟。請改用 Chrome / Edge，或定期點上面的「立即備份」。</div>`;
+  } else if(autoBackupOn){
+    const folder = (dirHandle && dirHandle.name) ? esc(dirHandle.name) : "已選資料夾";
+    auto = `<div class="bm-ok"><span class="bdot" style="background:#3a7d44;width:8px;height:8px;border-radius:50%"></span>自動備份運作中</div>
+      <div class="bm-note">📁 ${folder} · 每次資料變動 8 秒後自動寫入</div>
+      <button class="bm-btn danger" onclick="disableAutoBackup()">停用自動備份</button>`;
+  } else {
+    auto = `<button class="bm-btn" onclick="enableAutoBackup()">📁 啟用自動備份（選資料夾）</button>
+      <div class="bm-note">選一個雲端同步資料夾（iCloud／Dropbox／Google Drive），之後資料一變動就自動寫入，不用再記得手動備份。</div>`;
+  }
+  m.innerHTML = `
+    <div class="bm-status">${statusTxt}</div>
+    <button class="bm-btn" onclick="manualBackup()">⬇︎ 立即備份（下載含日期的 JSON 快照）</button>
+    <div class="bm-div"></div>
+    ${auto}`;
+}
+function manualBackup(){
+  exportJSON();
+  markBackup();
+  document.getElementById("backupMenu").classList.remove("show");
+}
+function scheduleAutoBackup(){
+  if(!autoBackupOn || !dirHandle) return;
+  clearTimeout(autoBackupTimer);
+  autoBackupTimer = setTimeout(writeAutoBackup, 8000);
+}
+async function writeAutoBackup(){
+  if(!dirHandle) return;
+  try {
+    const perm = await dirHandle.queryPermission({ mode: "readwrite" });
+    if(perm !== "granted"){
+      const req = await dirHandle.requestPermission({ mode: "readwrite" });
+      if(req !== "granted"){ toast("⚠️ 需要資料夾寫入權限，自動備份已暫停"); autoBackupOn=false; updateBackupBadge(); renderBackupMenu(); return; }
+    }
+    const fh = await dirHandle.getFileHandle(AUTO_FILE, { create: true });
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify(state, null, 2));
+    await w.close();
+    markBackup();
+  } catch(err){ console.warn(err); toast("⚠️ 自動備份寫入失敗"); }
+}
+async function enableAutoBackup(){
+  if(!FS_SUPPORTED){ toast("⚠️ 此瀏覽器不支援，請用 Chrome/Edge"); return; }
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: "readwrite", id: "backupLedger" });
+    autoBackupOn = true;
+    await writeAutoBackup();   // back up immediately
+    toast("✓ 自動備份已啟用");
+  } catch(err){
+    if(err.name !== "AbortError"){ console.warn(err); toast("⚠️ 啟用失敗"); }
+    return;
+  }
+  updateBackupBadge(); renderBackupMenu();
+}
+function disableAutoBackup(){
+  autoBackupOn = false; dirHandle = null; clearTimeout(autoBackupTimer);
+  updateBackupBadge(); renderBackupMenu();
+  toast("已停用自動備份");
+}
+
+/* ---------- import / export ---------- */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
+  downloadBlob(blob, `備份硬碟清單_備份_${todayStr()}.json`);
+  toast("✓ 已匯出 JSON 備份");
+}
+function exportCSV(){
+  const head = ["日期","公司","案件名稱","硬碟","大小","備註"];
+  const lines = [head.join(",")];
+  for(const r of state.records){
+    const dn = (driveById(r.driveId)||{}).name || "";
+    const cells = [r.date, r.company, r.project, dn, r.size||"", r.note||""]
+      .map(c => `"${String(c).replace(/"/g,'""')}"`);
+    lines.push(cells.join(","));
+  }
+  const blob = new Blob(["\uFEFF"+lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  downloadBlob(blob, `備份硬碟清單_${todayStr()}.csv`);
+  toast("✓ 已匯出 CSV（可用 Numbers/Pages 開啟）");
+}
+function downloadBlob(blob, filename){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function importJSON(e){
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if(!data.drives || !data.records) throw new Error("格式不符");
+      if(!confirm("還原會以這個檔案取代目前所有資料，確定嗎？\n（建議先點右上角徽章「立即備份」保留現況）")) return;
+      state.drives = data.drives; state.records = data.records;
+      state.clients = Array.isArray(data.clients) ? data.clients : [];
+      state.hiddenClients = Array.isArray(data.hiddenClients) ? data.hiddenClients : [];
+      for(const r of state.records){ if(r.company && !state.clients.includes(r.company)) state.clients.push(r.company); }
+      selectedCompany = "";
+      if(data.theme) state.theme = data.theme;
+      if(data.lastBackupAt) state.lastBackupAt = data.lastBackupAt;
+      save(); refreshAll(); toast("✓ 已還原資料");
+    } catch(err){ toast("⚠️ 還原失敗：檔案格式不正確"); }
+    e.target.value = "";
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- boot ---------- */
+function refreshAll(){ refreshDriveSelectors(); renderCompanyChips(); render(); }
+
+/* ============ SUPABASE CLOUD SYNC ============ */
+const SUPABASE_URL='https://bokmluubqcnezjcboogq.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJva21sdXVicWNuZXpqY2Jvb2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDI2ODIsImV4cCI6MjA5NTk3ODY4Mn0.W-cvOomywSU2L8xJaX98052_UZqed7rIkALQ_ETxxTw';
+const CLOUD_TABLE='workspace_data';
+const CLOUD_TOOL_ID='drive';
+const CLOUD_SYNC_DEBOUNCE_MS=3000;
+const OFFLINE_MODE_KEY='shadow_drive_offline_mode';
+
+let sbClient=null, currentUser=null, syncStatus='offline', cloudSyncTimer=null, cloudSyncInFlight=false, cloudLastSavedAt=null, offlineMode=false;
+
+function initSupabase(){
+  if(!window.supabase||!window.supabase.createClient) return false;
+  if(sbClient) return true;
+  sbClient=window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{persistSession:true,autoRefreshToken:true}});
+  return true;
+}
+function setSyncStatus(s){
+  syncStatus=s;
+  const dot=document.getElementById('userSyncDot');
+  if(dot) dot.className='sync-dot '+s;
+  const menu=document.getElementById('userMenu');
+  if(menu && menu.style.display !== 'none') renderUserMenu();
+}
+async function loadFromCloud(){
+  if(!sbClient||!currentUser) return null;
+  setSyncStatus('syncing');
+  try{
+    const {data, error} = await sbClient
+      .from(CLOUD_TABLE)
+      .select('data, updated_at')
+      .eq('user_id', currentUser.id)
+      .eq('tool_id', CLOUD_TOOL_ID)
+      .maybeSingle();
+    if(error) throw error;
+    setSyncStatus('synced');
+    if(!data) return null;
+    cloudLastSavedAt = data.updated_at;
+    return data.data;
+  }catch(e){
+    console.error('Load from cloud failed', e);
+    setSyncStatus('error');
+    toast('雲端載入失敗：'+e.message);
+    return null;
+  }
+}
+async function saveToCloud(){
+  if(!sbClient||!currentUser||offlineMode) return;
+  if(cloudSyncInFlight){
+    if(cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(saveToCloud, CLOUD_SYNC_DEBOUNCE_MS);
+    return;
+  }
+  cloudSyncInFlight = true;
+  setSyncStatus('syncing');
+  try{
+    const {error} = await sbClient.from(CLOUD_TABLE).upsert({
+      user_id: currentUser.id,
+      tool_id: CLOUD_TOOL_ID,
+      data: state,
+      updated_at: new Date().toISOString()
+    },{onConflict:'user_id,tool_id'});
+    if(error) throw error;
+    cloudLastSavedAt = new Date().toISOString();
+    setSyncStatus('synced');
+  }catch(e){
+    console.error('Save to cloud failed', e);
+    setSyncStatus('error');
+    toast('雲端儲存失敗：'+e.message);
+  }finally{
+    cloudSyncInFlight = false;
+  }
+}
+function scheduleCloudSync(){
+  if(!currentUser||offlineMode) return;
+  if(cloudSyncTimer) clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(saveToCloud, CLOUD_SYNC_DEBOUNCE_MS);
+}
+function hasMeaningfulData(s){
+  if(!s) return false;
+  return (s.records && s.records.length > 0) || (s.drives && s.drives.length > 1) || (s.clients && s.clients.length > 0);
+}
+
+/* ============ AUTH UI ============ */
+let authMode='signin';
+function showAuthGate(){
+  document.getElementById('authGate').style.display='';
+  document.getElementById('userPillWrap').style.display='none';
+}
+function hideAuthGate(){
+  document.getElementById('authGate').style.display='none';
+}
+function showAuthError(msg){
+  const el=document.getElementById('authError');
+  el.textContent=msg; el.classList.add('show');
+}
+function clearAuthError(){
+  const el=document.getElementById('authError');
+  el.classList.remove('show'); el.textContent='';
+}
+function updateAuthModeUI(){
+  const btn=document.getElementById('authSubmit');
+  const txt=document.getElementById('authModeText');
+  const sw=document.getElementById('authModeSwitch');
+  if(authMode==='signin'){ btn.textContent='登入'; txt.textContent='還沒有帳號?'; sw.textContent='註冊新帳號'; }
+  else { btn.textContent='註冊'; txt.textContent='已經有帳號了?'; sw.textContent='回到登入'; }
+}
+async function handleAuthSubmit(e){
+  e.preventDefault(); clearAuthError();
+  const email=document.getElementById('authEmail').value.trim();
+  const password=document.getElementById('authPassword').value;
+  if(!email||!password) return;
+  if(password.length<6){ showAuthError('密碼至少 6 個字元'); return; }
+  const btn=document.getElementById('authSubmit');
+  btn.disabled=true; btn.textContent=authMode==='signin'?'登入中…':'註冊中…';
+  try{
+    if(!initSupabase()) throw new Error('Supabase SDK 未載入');
+    let result;
+    if(authMode==='signin'){
+      result = await sbClient.auth.signInWithPassword({email,password});
+    } else {
+      result = await sbClient.auth.signUp({email,password});
+    }
+    if(result.error) throw result.error;
+  }catch(err){
+    showAuthError(err.message||'登入失敗');
+    btn.disabled=false;
+    updateAuthModeUI();
+  }
+}
+function setOfflineModeChoice(){
+  offlineMode=true;
+  try{ localStorage.setItem(OFFLINE_MODE_KEY,'1'); }catch(e){}
+  hideAuthGate();
+  bootstrapAppWithLocalData();
+}
+async function handleLogout(){
+  if(!confirm('確定要登出?本機資料會保留,可重新登入。')) return;
+  if(sbClient){ try{ await sbClient.auth.signOut(); }catch(e){} }
+  window.location.reload();
+}
+
+function renderUserMenu(){
+  const menu=document.getElementById('userMenu');
+  if(!menu) return;
+  if(!currentUser && offlineMode){
+    menu.innerHTML = `
+      <div class="user-menu-info">
+        <div class="user-menu-email">離線模式</div>
+        <div class="user-menu-status">資料只存在這個瀏覽器中</div>
+      </div>
+      <div class="user-menu-item accent" onclick="(function(){try{localStorage.removeItem(OFFLINE_MODE_KEY);}catch(e){};offlineMode=false;showAuthGate();updateAuthModeUI();document.getElementById('userMenu').style.display='none';})()">
+        <span>☁</span><span>登入帳號 (啟用雲端同步)</span>
+      </div>`;
+    return;
+  }
+  if(!currentUser) return;
+  const statusText = {synced:'✓ 已同步',syncing:'同步中…',offline:'離線',error:'⚠ 同步錯誤'}[syncStatus]||'未知';
+  const lastSavedText = cloudLastSavedAt ? new Date(cloudLastSavedAt).toLocaleString('zh-TW',{hour12:false}) : '尚未同步';
+  menu.innerHTML = `
+    <div class="user-menu-info">
+      <div class="user-menu-email">${(currentUser.email||'').replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]))}</div>
+      <div class="user-menu-status">
+        <span class="sync-dot ${syncStatus}" style="display:inline-block;width:6px;height:6px;border-radius:50%"></span>
+        <span>${statusText}</span>
+      </div>
+      <div style="font-size:10px;color:var(--faint);font-family:var(--mono);margin-top:4px">上次同步:${lastSavedText}</div>
+    </div>
+    <div class="user-menu-item" onclick="saveToCloud();document.getElementById('userMenu').style.display='none'">
+      <span>🔄</span><span>立即同步</span>
+    </div>
+    <div class="user-menu-item danger" onclick="document.getElementById('userMenu').style.display='none';handleLogout()">
+      <span>⏏</span><span>登出</span>
+    </div>`;
+}
+
+function toggleUserMenu(e){
+  if(e) e.stopPropagation();
+  const menu=document.getElementById('userMenu');
+  if(menu.style.display==='none'){
+    renderUserMenu();
+    menu.style.display='';
+    setTimeout(()=>{
+      const closer=ev=>{
+        const pill=document.getElementById('userPill');
+        if(!menu.contains(ev.target) && !pill.contains(ev.target)){
+          menu.style.display='none';
+          document.removeEventListener('mousedown', closer);
+        }
+      };
+      document.addEventListener('mousedown', closer);
+    }, 0);
+  } else {
+    menu.style.display='none';
+  }
+}
+
+function bootstrapAppWithLocalData(){
+  hideAuthGate();
+  load();
+  document.getElementById("f-date").value = todayStr();
+  refreshAll();
+  updateBackupBadge();
+  if(currentUser){
+    document.getElementById('userPillWrap').style.display='';
+    document.getElementById('userEmail').textContent=currentUser.email||'';
+  } else if(offlineMode){
+    document.getElementById('userPillWrap').style.display='';
+    document.getElementById('userEmail').textContent='離線模式';
+    document.getElementById('userSyncDot').className='sync-dot offline';
+  }
+}
+
+async function bootstrapAppFromCloud(){
+  hideAuthGate();
+  document.getElementById('userPillWrap').style.display='';
+  document.getElementById('userEmail').textContent=currentUser.email||'';
+  setSyncStatus('syncing');
+
+  const cloudData = await loadFromCloud();
+  const localRaw = (function(){ try{ return localStorage.getItem(STORE); }catch(e){ return null; } })();
+  const localState = localRaw ? (function(){try{return JSON.parse(localRaw);}catch(e){return null;}})() : null;
+  const localHasContent = hasMeaningfulData(localState);
+  const cloudHasContent = cloudData && hasMeaningfulData(cloudData);
+
+  if(cloudHasContent){
+    state = Object.assign({drives:[],records:[],clients:[],hiddenClients:[],theme:"light",lastBackupAt:null}, cloudData);
+    try{ localStorage.setItem(STORE, JSON.stringify(state)); }catch(e){}
+    document.getElementById("f-date").value = todayStr();
+    refreshAll();
+    updateBackupBadge();
+    setSyncStatus('synced');
+  } else if(localHasContent){
+    // Show migration dialog
+    load();
+    document.getElementById("f-date").value = todayStr();
+    refreshAll();
+    updateBackupBadge();
+    document.getElementById('migrationDialog').style.display='';
+  } else {
+    load();
+    document.getElementById("f-date").value = todayStr();
+    refreshAll();
+    updateBackupBadge();
+    setSyncStatus('synced');
+  }
+}
+
+function migrationUpload(){
+  document.getElementById('migrationDialog').style.display='none';
+  saveToCloud().then(()=>toast('本機資料已上傳到雲端'));
+}
+function migrationSkip(){
+  document.getElementById('migrationDialog').style.display='none';
+  // Reset to fresh state (don't keep local since cloud is empty and user chose to skip)
+  state = { drives: [], records: [], clients: [], hiddenClients: [], theme: state.theme, lastBackupAt: null };
+  state.drives.push({ id: uid(), name: "HDD-01", cap: "", note: "", color: COLORS[0] });
+  persist();
+  refreshAll();
+  setSyncStatus('synced');
+}
+
+function bootstrapInit(){
+  // Wire up auth UI
+  document.getElementById('authForm').addEventListener('submit', handleAuthSubmit);
+  document.getElementById('authModeSwitch').addEventListener('click', ()=>{
+    authMode = authMode==='signin' ? 'signup' : 'signin';
+    clearAuthError();
+    updateAuthModeUI();
+  });
+  document.getElementById('authOfflineBtn').addEventListener('click', setOfflineModeChoice);
+  document.getElementById('migrationUploadBtn').addEventListener('click', migrationUpload);
+  document.getElementById('migrationSkipBtn').addEventListener('click', migrationSkip);
+
+  // refresh the "N 天前 / N 分鐘前" label over time
+  setInterval(updateBackupBadge, 60000);
+  // close the backup menu when clicking elsewhere
+  document.addEventListener("click", e=>{
+    const wrap = document.querySelector(".backup-wrap");
+    if(wrap && !wrap.contains(e.target)) document.getElementById("backupMenu").classList.remove("show");
+  });
+  // enter key on project field adds record
+  // (set after refreshAll so the element exists)
+  setTimeout(()=>{
+    const proj = document.getElementById("f-project");
+    if(proj) proj.addEventListener("keydown", e=>{ if(e.key==="Enter") addRecord(); });
+  }, 100);
+}
+
+// MAIN BOOTSTRAP
+(async function(){
+  // Pre-render with whatever localStorage has, so the page is never blank
+  try { bootstrapAppWithLocalData(); } catch(e){ console.error(e); }
+  bootstrapInit();
+
+  // Watchdog
+  let done=false;
+  const watchdog=setTimeout(()=>{ if(!done){ console.warn('Bootstrap watchdog'); done=true; } }, 4000);
+  const finish=()=>{ done=true; clearTimeout(watchdog); };
+
+  try{
+    // Check offline mode
+    try{
+      if(localStorage.getItem(OFFLINE_MODE_KEY)==='1'){
+        offlineMode=true;
+        finish();
+        return;
+      }
+    }catch(e){}
+
+    if(!initSupabase()){
+      console.warn('Supabase SDK not available, offline mode');
+      offlineMode=true;
+      document.getElementById('userPillWrap').style.display='';
+      document.getElementById('userEmail').textContent='離線模式 (SDK 未載入)';
+      finish();
+      return;
+    }
+
+    // Check session
+    try{
+      const {data:{session}} = await sbClient.auth.getSession();
+      if(session && session.user){
+        currentUser = session.user;
+        await bootstrapAppFromCloud();
+      } else {
+        showAuthGate();
+        updateAuthModeUI();
+      }
+    }catch(e){
+      console.error('Session check failed', e);
+      showAuthGate();
+      updateAuthModeUI();
+    }
+    finish();
+
+    sbClient.auth.onAuthStateChange(async(event, session)=>{
+      if(event==='SIGNED_IN' && session && session.user){
+        if(currentUser && currentUser.id===session.user.id) return;
+        currentUser = session.user;
+        try{ localStorage.removeItem(OFFLINE_MODE_KEY); }catch(e){}
+        await bootstrapAppFromCloud();
+      } else if(event==='SIGNED_OUT'){
+        currentUser = null;
+      }
+    });
+  }catch(err){
+    console.error('Bootstrap critical', err);
+    finish();
+  }
+})();
+</script>
+</body>
+</html>
