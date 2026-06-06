@@ -705,6 +705,98 @@
   }
   .compose-banner .count { font-family: var(--mono); font-weight: 600; }
 
+  /* Tip card (quote checklist) */
+  .tip-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 14px 12px;
+  }
+  .tip-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  .tip-card-label {
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .tip-card-actions {
+    display: flex;
+    gap: 4px;
+  }
+  .tip-card-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 10.5px;
+    font-family: var(--sans);
+    transition: all 0.12s;
+  }
+  .tip-card-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .tip-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tip-item {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+  .tip-item .tip-num {
+    flex-shrink: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 10px;
+    background: var(--accent-soft);
+    padding: 1px 6px;
+    border-radius: 4px;
+    min-width: 18px;
+    text-align: center;
+    line-height: 1.5;
+    margin-top: 1px;
+  }
+
+  /* Tip edit modal */
+  .tip-editor textarea {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: var(--sans);
+    line-height: 1.7;
+    resize: vertical;
+    min-height: 200px;
+  }
+  .tip-editor textarea:focus { outline: none; border-color: var(--accent); }
+  .tip-editor-hint {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 8px;
+    line-height: 1.55;
+  }
+
   /* Mobile responsive */
   @media (max-width: 880px) {
     .app-main { grid-template-columns: 1fr; }
@@ -794,6 +886,17 @@
       <div class="sidebar-section-label">標籤篩選</div>
       <div class="tag-filter-list" id="tagFilterList"></div>
     </div>
+
+    <div class="tip-card">
+      <div class="tip-card-header">
+        <span class="tip-card-label">報價前 · Checklist</span>
+        <div class="tip-card-actions">
+          <button class="tip-card-btn" id="tipCopyBtn" title="複製清單">⎘</button>
+          <button class="tip-card-btn" id="tipEditBtn" title="編輯">✎</button>
+        </div>
+      </div>
+      <ul class="tip-list" id="tipList"></ul>
+    </div>
   </aside>
 
   <!-- Content -->
@@ -840,6 +943,22 @@
   </section>
 </main>
 
+<!-- Tip editor modal -->
+<div class="modal-overlay" id="tipEditModal">
+  <div class="modal">
+    <h3>編輯報價前詢問清單</h3>
+    <div class="tip-editor">
+      <textarea id="tipEditTextarea" placeholder="一行一項,自動編號"></textarea>
+      <div class="tip-editor-hint">每一行 = 一項詢問事項,儲存後自動編號顯示。空行會被忽略。</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" id="tipEditResetBtn">重設為預設</button>
+      <button class="btn" id="tipEditCancelBtn">取消</button>
+      <button class="btn primary" id="tipEditSaveBtn">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- Compose Output Modal -->
 <div class="modal-overlay" id="composeModal">
   <div class="modal modal-large">
@@ -883,8 +1002,17 @@ function defaultState() {
       { id: 'cat_default', name: '尚未分類' }
     ],
     items: [],
-    activeCategoryId: 'cat_default'
+    activeCategoryId: 'cat_default',
+    tipChecklist: defaultTipChecklist()
   };
+}
+
+function defaultTipChecklist() {
+  return [
+    '時間 / 地點(是否在雙北市區)',
+    '橫式 or 直式、4K or 1080P、709 or SLog',
+    '需不需收音'
+  ];
 }
 
 let state = defaultState();
@@ -935,6 +1063,9 @@ function migrateState(s) {
   });
   if (!s.activeCategoryId || !s.categories.find(c => c.id === s.activeCategoryId)) {
     s.activeCategoryId = s.categories[0].id;
+  }
+  if (!Array.isArray(s.tipChecklist)) {
+    s.tipChecklist = defaultTipChecklist();
   }
   return s;
 }
@@ -1248,11 +1379,11 @@ function duplicateItem(itemId) {
 /* ============ COPY / COMPOSE ============ */
 function formatItemAsText(it) {
   const lines = [];
-  lines.push('服務項目:' + (it.name || ''));
-  if (it.duration) lines.push('時長:' + it.duration);
-  if (it.price !== '' && it.price != null) lines.push('費用:' + fmtPrice(it.price));
-  if (it.equipment) lines.push('器材:' + it.equipment);
-  if (it.notes) lines.push('備註:' + it.notes);
+  if (it.name) lines.push(it.name);
+  if (it.duration) lines.push(it.duration);
+  if (it.price !== '' && it.price != null) lines.push(fmtPrice(it.price));
+  if (it.equipment) lines.push(it.equipment);
+  if (it.notes) lines.push(it.notes);
   return lines.join('\n');
 }
 async function copyText(text) {
@@ -1306,15 +1437,15 @@ function buildComposedQuote() {
 
   selectedItems.forEach((it, idx) => {
     lines.push(`【${idx + 1}】 ${it.name}`);
-    if (it.duration) lines.push(`時長:${it.duration}`);
+    if (it.duration) lines.push(it.duration);
     if (it.price !== '' && it.price != null) {
-      lines.push(`費用:${fmtPrice(it.price)}`);
+      lines.push(fmtPrice(it.price));
       const n = parseFloat(String(it.price).replace(/[^0-9.-]/g, ''));
       if (isNaN(n)) hasUnparseable = true;
       else total += n;
     }
-    if (it.equipment) lines.push(`器材:${it.equipment}`);
-    if (it.notes) lines.push(`備註:${it.notes}`);
+    if (it.equipment) lines.push(it.equipment);
+    if (it.notes) lines.push(it.notes);
     lines.push(''); // blank between items
   });
 
@@ -1494,8 +1625,47 @@ function renderContentHeader() {
 function renderAll() {
   renderCategoryList();
   renderTagFilter();
+  renderTipChecklist();
   renderContentHeader();
   renderTable();
+}
+
+function renderTipChecklist() {
+  const list = document.getElementById('tipList');
+  const items = state.tipChecklist || [];
+  list.innerHTML = items.map((t, i) => `
+    <li class="tip-item">
+      <span class="tip-num">${i + 1}</span>
+      <span>${escapeHtml(t)}</span>
+    </li>
+  `).join('');
+}
+
+function copyTipChecklist() {
+  const items = (state.tipChecklist || []).filter(t => t && t.trim());
+  if (items.length === 0) { showToast('清單是空的'); return; }
+  const text = items.map((t, i) => `${i + 1}. ${t}`).join('\n');
+  copyText(text);
+}
+
+function openTipEditor() {
+  document.getElementById('tipEditTextarea').value = (state.tipChecklist || []).join('\n');
+  document.getElementById('tipEditModal').classList.add('show');
+  setTimeout(() => document.getElementById('tipEditTextarea').focus(), 50);
+}
+
+function saveTipEditor() {
+  const raw = document.getElementById('tipEditTextarea').value;
+  const items = raw.split('\n').map(l => l.trim()).filter(l => l);
+  state.tipChecklist = items.length > 0 ? items : defaultTipChecklist();
+  saveState();
+  renderTipChecklist();
+  document.getElementById('tipEditModal').classList.remove('show');
+  showToast('已更新詢問清單');
+}
+
+function resetTipEditor() {
+  document.getElementById('tipEditTextarea').value = defaultTipChecklist().join('\n');
 }
 
 /* ============ THEME ============ */
@@ -1694,6 +1864,13 @@ function wireEvents() {
   document.getElementById('composeBuildBtn').addEventListener('click', buildComposedQuote);
   document.getElementById('composeCloseBtn').addEventListener('click', () => document.getElementById('composeModal').classList.remove('show'));
   document.getElementById('composeCopyBtn').addEventListener('click', () => copyText(document.getElementById('composeOutput').textContent));
+
+  // Tip card
+  document.getElementById('tipCopyBtn').addEventListener('click', copyTipChecklist);
+  document.getElementById('tipEditBtn').addEventListener('click', openTipEditor);
+  document.getElementById('tipEditCancelBtn').addEventListener('click', () => document.getElementById('tipEditModal').classList.remove('show'));
+  document.getElementById('tipEditSaveBtn').addEventListener('click', saveTipEditor);
+  document.getElementById('tipEditResetBtn').addEventListener('click', resetTipEditor);
 
   document.getElementById('searchBox').addEventListener('input', e => {
     searchQuery = e.target.value.trim();
