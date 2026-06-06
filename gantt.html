@@ -52,6 +52,7 @@
   --danger: #c87f7f;
   --danger-bg: #4a2828;
   --success: #6a9c6a;
+  --weekend-stripe: rgba(255,255,255,0.03);
 }
 [data-theme="light"] {
   --bg: #faf8f3;
@@ -67,6 +68,7 @@
   --danger: #a04848;
   --danger-bg: #f4dada;
   --success: #4a7a4a;
+  --weekend-stripe: rgba(80,60,30,0.06);
 }
 [data-theme="light"] input[type=date]::-webkit-calendar-picker-indicator { filter: none; }
 
@@ -1011,7 +1013,7 @@ function App(){
               </div>
               {dates.map((d,i)=>{
                 const it=i===tOff,we=d.getDay()===0||d.getDay()===6;
-                return<div key={i} style={{width:cw,minWidth:cw,height:28,display:'flex',alignItems:'center',paddingLeft:3,fontSize:9,color:it?'var(--accent)':we?'var(--text-3)':'var(--text-3)',background:it?'var(--accent-soft)':we?'rgba(255,255,255,0.04)':'transparent',fontWeight:it?700:400,borderLeft:'1px solid var(--border)40'}}>{cw>=22?d.getDate():''}</div>;
+                return<div key={i} style={{width:cw,minWidth:cw,height:28,display:'flex',alignItems:'center',paddingLeft:3,fontSize:9,color:it?'var(--accent)':we?'var(--text-3)':'var(--text-3)',background:it?'var(--accent-soft)':we?'var(--weekend-stripe)':'transparent',fontWeight:it?700:400,borderLeft:'1px solid var(--border)40'}}>{cw>=22?d.getDate():''}</div>;
               })}
             </div>
 
@@ -1065,7 +1067,7 @@ function App(){
                       <div style={{position:'relative',flex:1,height:32}} onClick={e=>{if(e.shiftKey)toggleSel(e,proj.id,task.id);else if(e.target===e.currentTarget)setSelected(new Set());}}>
 
                         {tOff>=0&&tOff<vDays&&<div style={{position:'absolute',left:tOff*cw+cw/2,top:0,bottom:0,width:1.5,background:'var(--accent)',opacity:.25,zIndex:2}}/>}
-                        {dates.map((d,i)=>(d.getDay()===0||d.getDay()===6)&&<div key={i} style={{position:'absolute',left:i*cw,top:0,bottom:0,width:cw,background:'rgba(255,255,255,0.03)'}}/>)}
+                        {dates.map((d,i)=>(d.getDay()===0||d.getDay()===6)&&<div key={i} style={{position:'absolute',left:i*cw,top:0,bottom:0,width:cw,background:'var(--weekend-stripe)'}}/>)}
                         {vis&&(
                           <div style={{position:'absolute',left:bL,top:3,height:26,display:'flex',alignItems:'center'}}>
                             <div style={{height:20,width:bW-4,borderRadius:5,background:isSel?proj.color+'55':proj.color+'28',border:'1.5px solid '+(isSel?proj.color:proj.color+'77'),overflow:'hidden',cursor:'grab',position:'relative',flexShrink:0,userSelect:'none'}}
