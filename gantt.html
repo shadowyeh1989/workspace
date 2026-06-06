@@ -484,13 +484,41 @@ function App(){
     reader.onload=ev=>{
       try{
         const s=JSON.parse(ev.target.result);
-        if(s.projs)setProjs(s.projs);
-        if(s.nPid)nPid=s.nPid;
-        if(s.nTid)nTid=s.nTid;
-        if(s.tags)setTags(s.tags||[]);
-        if(s.title)setTitle(s.title);
-        alert('匯入成功！');
-      }catch(err){alert('JSON 格式有誤');}
+
+        // Format A: Multi-workspace backup (auto-backup file or 'workspaces' container)
+        // {workspaces: [...], currentWsId: '...'}
+        if(s.workspaces&&Array.isArray(s.workspaces)&&s.workspaces.length>0){
+          const totalProjs=s.workspaces.reduce((sum,w)=>sum+(w.projs?w.projs.length:0),0);
+          if(!confirm(`偵測到「多工作區」格式備份。\n要匯入 ${s.workspaces.length} 個工作區、共 ${totalProjs} 個專案嗎?\n\n⚠ 這會取代目前的所有工作區資料。`))return;
+          try{
+            localStorage.setItem('gantt-workspaces',JSON.stringify(s.workspaces));
+            const newCurId=s.currentWsId||s.workspaces[0].id;
+            localStorage.setItem('gantt-ws-current',newCurId);
+          }catch(err){alert('儲存失敗:'+err.message);return;}
+          alert(`成功匯入 ${s.workspaces.length} 個工作區,即將重新載入頁面…`);
+          setTimeout(()=>window.location.reload(),500);
+          return;
+        }
+
+        // Format B: Single workspace export
+        // {projs: [...], tags: [...], title: '...', nPid: N, nTid: N}
+        if(s.projs&&Array.isArray(s.projs)){
+          const curWsName=workspaces.find(w=>w.id===wsId)?.name||'目前工作區';
+          if(!confirm(`偵測到「單一工作區」格式 (${s.projs.length} 個專案)。\n要匯入到「${curWsName}」嗎?\n\n⚠ 「${curWsName}」目前的內容會被取代,其他工作區不受影響。`))return;
+          setProjs(s.projs);
+          if(s.nPid)nPid=s.nPid;
+          if(s.nTid)nTid=s.nTid;
+          if(s.tags)setTags(s.tags||[]);
+          if(s.title)setTitle(s.title);
+          alert(`成功匯入 ${s.projs.length} 個專案到「${curWsName}」`);
+          return;
+        }
+
+        // Unknown format
+        alert('JSON 格式無法辨識。\n\n預期格式:\n• 多工作區備份: { workspaces: [...] }\n• 單一工作區匯出: { projs: [...], tags: [...] }\n\n實際看到的最上層欄位:\n'+Object.keys(s).join(', '));
+      }catch(err){
+        alert('JSON 解析失敗:'+err.message);
+      }
     };
     reader.readAsText(file);
     e.target.value='';
