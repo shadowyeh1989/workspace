@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="報價參考">
+<meta name="theme-color" content="#0e0e10">
+<link rel="icon" type="image/x-icon" href="icons/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>報價參考表</title>
+<script>
+  (function() {
+    try {
+      var saved = localStorage.getItem('shadow_ledger_theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+        return;
+      }
+    } catch (e) {}
+    var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    document.documentElement.setAttribute('data-theme', prefersLight ? 'light' : 'dark');
+  })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root, [data-theme="dark"] {
+    --bg: #0e0e10;
+    --surface: #18181b;
+    --surface-2: #232327;
+    --surface-hover: #2a2a2f;
+    --border: #2e2e33;
+    --border-soft: rgba(46,46,51,0.5);
+    --text: #ededee;
+    --text-2: #a1a1a6;
+    --text-3: #6e6e73;
+    --accent: #d4a05c;
+    --accent-soft: #6b5234;
+    --danger: #c87f7f;
+    --danger-bg: #4a2828;
+    --success: #6a9c6a;
+    --row-hover: rgba(255,255,255,0.02);
+    --shadow: 0 12px 32px rgba(0,0,0,0.4);
+    --modal-overlay: rgba(0,0,0,0.6);
+    --serif: 'Iowan Old Style', 'Charter', Georgia, serif;
+    --sans: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    --mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+  }
+  [data-theme="light"] {
+    --bg: #faf8f3;
+    --surface: #ffffff;
+    --surface-2: #f1ede4;
+    --surface-hover: #ebe6da;
+    --border: #d8d2c4;
+    --border-soft: rgba(216,210,196,0.5);
+    --text: #2a2620;
+    --text-2: #5e5849;
+    --text-3: #8a8270;
+    --accent: #a87434;
+    --accent-soft: #ecdcc4;
+    --danger: #a04848;
+    --danger-bg: #f4dada;
+    --success: #4a7a4a;
+    --row-hover: rgba(80,60,30,0.04);
+    --shadow: 0 8px 24px rgba(80,60,30,0.12);
+    --modal-overlay: rgba(80,60,30,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+  ::-webkit-scrollbar { height: 8px; width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--surface-2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  @keyframes pulseDot { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+  /* ===== HEADER ===== */
+  .app-header {
+    padding: 24px 28px 0;
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .brand-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-decoration: none;
+    margin-bottom: 6px;
+    width: fit-content;
+    transition: color 0.15s;
+  }
+  .brand-back:hover { color: var(--accent); }
+  .brand-back .arrow { transition: transform 0.15s; display: inline-block; }
+  .brand-back:hover .arrow { transform: translateX(-2px); }
+  .brand-title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 24px;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+  .brand-title em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .icon-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ===== MAIN LAYOUT ===== */
+  .app-main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 28px 60px;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+  }
+
+  /* ===== SIDEBAR (categories) ===== */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .sidebar-section-label {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding-left: 12px;
+    margin-bottom: 6px;
+  }
+  .category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .category-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-2);
+    transition: all 0.15s;
+    position: relative;
+  }
+  .category-item:hover { background: var(--surface-hover); color: var(--text); }
+  .category-item.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .category-item .cat-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .category-item .cat-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .category-item.active .cat-count { background: var(--surface); }
+  .category-item .cat-edit {
+    opacity: 0;
+    color: var(--text-3);
+    font-size: 11px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    transition: opacity 0.15s;
+  }
+  .category-item:hover .cat-edit { opacity: 1; }
+  .category-item .cat-edit:hover { color: var(--accent); background: var(--surface); }
+
+  .add-category-btn {
+    padding: 9px 12px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-3);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    width: 100%;
+    text-align: left;
+  }
+  .add-category-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Tag filter */
+  .tag-filter-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 4px;
+  }
+  .tag-filter-chip {
+    font-size: 10.5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .tag-filter-chip:hover { color: var(--text); border-color: var(--text-3); }
+  .tag-filter-chip.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* ===== MAIN CONTENT ===== */
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .content-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-style: italic;
+    font-weight: 400;
+    margin: 0;
+  }
+  .content-sub {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .content-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--sans);
+    min-width: 220px;
+    transition: border-color 0.15s;
+  }
+  .search-box:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+  .btn.primary:hover { opacity: 0.85; color: var(--bg); }
+  .btn.danger { color: var(--danger); }
+  .btn.danger:hover { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+  .btn.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+  /* ===== TABLE ===== */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  table.q-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  table.q-table thead th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  table.q-table tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+    font-size: 13px;
+  }
+  table.q-table tbody tr:last-child td { border-bottom: none; }
+  table.q-table tbody tr:hover { background: var(--row-hover); }
+  table.q-table tbody tr.selected { background: var(--accent-soft); }
+
+  .col-check { width: 36px; text-align: center; padding-right: 0 !important; }
+  .col-name { min-width: 180px; }
+  .col-duration { width: 130px; }
+  .col-price { width: 130px; text-align: right; }
+  .col-equip { min-width: 160px; }
+  .col-notes { min-width: 180px; }
+  .col-tags { width: 130px; }
+  .col-actions { width: 90px; text-align: right; padding-left: 0 !important; }
+
+  .cell-name {
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.4;
+  }
+  .cell-name .star {
+    color: var(--accent);
+    margin-right: 4px;
+  }
+  .cell-duration, .cell-equip, .cell-notes {
+    color: var(--text-2);
+    font-size: 12.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .cell-price {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: right;
+  }
+  .cell-price.empty { color: var(--text-3); font-style: italic; }
+  .cell-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .row-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+  }
+  .row-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+  .row-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 4px 7px;
+    border-radius: 5px;
+    font-size: 12px;
+    transition: all 0.12s;
+  }
+  .row-icon-btn:hover { color: var(--accent); background: var(--surface-hover); }
+  .row-icon-btn.danger:hover { color: var(--danger); background: var(--danger-bg); }
+
+  .empty-row {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13px;
+  }
+  .empty-row .emoji { font-size: 32px; display: block; margin-bottom: 10px; opacity: 0.5; }
+
+  /* ===== EDIT / ADD ITEM ROW ===== */
+  .item-form {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .form-field.full { grid-column: 1 / -1; }
+  .form-field label {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .form-field input, .form-field textarea {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 11px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: var(--sans);
+    resize: vertical;
+  }
+  .form-field input:focus, .form-field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .form-field textarea { min-height: 60px; line-height: 1.5; }
+  .form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* Tag input */
+  .tag-input-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    min-height: 36px;
+  }
+  .tag-input-wrap:focus-within { border-color: var(--accent); }
+  .tag-input-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tag-input-chip .x {
+    cursor: pointer;
+    color: var(--accent);
+    opacity: 0.6;
+    font-size: 10px;
+  }
+  .tag-input-chip .x:hover { opacity: 1; }
+  .tag-input-field {
+    border: none;
+    background: transparent;
+    flex: 1;
+    min-width: 80px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--sans);
+    padding: 2px 4px;
+  }
+  .tag-input-field:focus { outline: none; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-overlay);
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+  .modal-large { max-width: 720px; }
+  .modal h3 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 19px;
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+
+  /* Compose modal */
+  .compose-output {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.7;
+    white-space: pre-wrap;
+    max-height: 50vh;
+    overflow-y: auto;
+    margin-bottom: 14px;
+  }
+  .compose-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .compose-stats strong { color: var(--accent); font-family: var(--mono); font-weight: 500; }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 700;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+  /* ===== AUTH GATE ===== */
+  .auth-gate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 28px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: var(--shadow);
+  }
+  .auth-title { font-family: var(--serif); font-size: 22px; margin: 0 0 4px; font-weight: 500; }
+  .auth-title em { color: var(--accent); font-style: italic; font-weight: 400; }
+  .auth-sub { font-size: 11px; color: var(--text-3); letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 22px; }
+  .auth-field { margin-bottom: 14px; }
+  .auth-field label { display: block; font-size: 11px; color: var(--text-3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .auth-field input { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 7px; font-size: 14px; font-family: var(--sans); }
+  .auth-field input:focus { outline: none; border-color: var(--accent); }
+  .auth-submit { width: 100%; background: var(--accent); color: var(--bg); border: none; padding: 11px; border-radius: 7px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--sans); margin-top: 6px; }
+  .auth-submit:hover { opacity: 0.85; }
+  .auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-mode-switch { text-align: center; margin-top: 14px; font-size: 12px; color: var(--text-3); }
+  .auth-mode-switch a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .auth-error { background: var(--danger-bg); color: var(--danger); padding: 10px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; display: none; border: 1px solid var(--danger); }
+  .auth-error.show { display: block; }
+  .auth-offline { background: var(--surface-2); color: var(--text-3); padding: 8px 12px; border-radius: 6px; font-size: 11px; margin-top: 12px; text-align: center; border: 1px solid var(--border); cursor: pointer; }
+  .auth-back { font-size: 10px; color: var(--text-3); letter-spacing: 0.18em; text-transform: uppercase; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 14px; }
+
+  /* User pill */
+  .user-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 11.5px; color: var(--text-2); cursor: pointer; position: relative; }
+  .user-pill:hover { background: var(--surface-hover); }
+  .user-pill .email { font-family: var(--mono); font-size: 11px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .user-pill .sync-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .sync-dot.synced { background: var(--success); }
+  .sync-dot.syncing { background: var(--accent); animation: pulseDot 1.2s ease-in-out infinite; }
+  .sync-dot.offline { background: var(--text-3); }
+  .sync-dot.error { background: var(--danger); }
+  .user-pill .chev { color: var(--text-3); font-size: 9px; padding: 0 4px; }
+  .user-menu { position: absolute; top: calc(100% + 6px); right: 0; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 6px; min-width: 240px; box-shadow: var(--shadow); z-index: 300; display: none; }
+  .user-menu.show { display: block; }
+  .user-menu-info { padding: 10px 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .user-menu-email { font-family: var(--mono); font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .user-menu-status { font-size: 11px; color: var(--text-3); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+  .user-menu-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .user-menu-item:hover { background: var(--surface-hover); }
+  .user-menu-item.danger { color: var(--danger); }
+  .user-menu-item.danger:hover { background: var(--danger-bg); }
+  .user-menu-item.accent { color: var(--accent); }
+  .user-menu-item.accent:hover { background: var(--accent-soft); }
+
+  /* Migration dialog */
+  .migration-dialog { position: fixed; inset: 0; background: var(--modal-overlay); z-index: 800; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .migration-dialog.show { display: flex; }
+  .migration-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 440px; width: 100%; }
+
+  /* Compose mode banner */
+  .compose-banner {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 10px 16px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 13px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .compose-banner .count { font-family: var(--mono); font-weight: 600; }
+
+  /* Mobile responsive */
+  @media (max-width: 880px) {
+    .app-main { grid-template-columns: 1fr; }
+    .sidebar { order: 2; }
+    .col-equip, .col-notes, .col-tags { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Auth gate -->
+<div class="auth-gate" id="authGate" style="display:none">
+  <div class="auth-card">
+    <a href="index.html" class="auth-back"><span>←</span><span>Workspace</span></a>
+    <h1 class="auth-title">報價<em>參考表</em></h1>
+    <div class="auth-sub">Quote · Reference · Library</div>
+    <div class="auth-error" id="authError"></div>
+    <form id="authForm">
+      <div class="auth-field">
+        <label for="authEmail">Email</label>
+        <input type="email" id="authEmail" autocomplete="email" required>
+      </div>
+      <div class="auth-field">
+        <label for="authPassword">密碼</label>
+        <input type="password" id="authPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="auth-submit" id="authSubmit">登入</button>
+    </form>
+    <div class="auth-mode-switch">
+      <span id="authModeText">還沒有帳號?</span>
+      <a id="authModeSwitch">註冊新帳號</a>
+    </div>
+    <div class="auth-offline" id="authOfflineBtn">⏏ 離線使用 (僅本機 · 不同步)</div>
+  </div>
+</div>
+
+<!-- Migration dialog -->
+<div class="migration-dialog" id="migrationDialog">
+  <div class="migration-card">
+    <h3 style="font-family:var(--serif);font-style:italic;margin-bottom:8px;font-weight:500">偵測到本機已有資料</h3>
+    <div style="font-size:13px;color:var(--text-2);line-height:1.65;margin-bottom:20px">
+      你的瀏覽器中有過去儲存的報價資料,而雲端帳號目前是空的。<br><br>
+      要把本機資料<strong style="color:var(--text)">上傳到雲端</strong>嗎?上傳後其他裝置就能看到。
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn" id="migrationSkipBtn">略過 · 使用雲端 (空)</button>
+      <button class="btn primary" id="migrationUploadBtn">上傳本機資料到雲端</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header class="app-header">
+  <div class="brand-block">
+    <a href="index.html" class="brand-back">
+      <span class="arrow">←</span><span>Workspace</span>
+    </a>
+    <h1 class="brand-title">報價<em>參考表</em></h1>
+    <div class="brand-sub">Quote · Reference · Library</div>
+  </div>
+  <div class="header-actions">
+    <div id="userPillWrap" style="position:relative;display:none">
+      <div id="userPill" class="user-pill">
+        <span class="sync-dot offline" id="userSyncDot"></span>
+        <span class="email" id="userEmail"></span>
+        <span class="chev">▾</span>
+      </div>
+      <div id="userMenu" class="user-menu"></div>
+    </div>
+    <button class="icon-btn" id="themeToggle" title="切換主題">
+      <svg id="iconSun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+      <svg id="iconMoon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    </button>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="app-main">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div>
+      <div class="sidebar-section-label">分類</div>
+      <div class="category-list" id="categoryList"></div>
+      <button class="add-category-btn" id="addCategoryBtn" style="margin-top:8px">+ 新增分類</button>
+    </div>
+    <div id="tagFilterWrap" style="display:none">
+      <div class="sidebar-section-label">標籤篩選</div>
+      <div class="tag-filter-list" id="tagFilterList"></div>
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <section class="content">
+    <div id="composeBanner" class="compose-banner" style="display:none">
+      <div>📋 報價單組合模式 · 已選 <span class="count" id="composeCount">0</span> 項</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" id="composeCancelBtn">取消</button>
+        <button class="btn primary" id="composeBuildBtn">產生報價單</button>
+      </div>
+    </div>
+
+    <div class="content-header">
+      <div>
+        <h2 class="content-title" id="contentTitle">所有項目</h2>
+        <div class="content-sub" id="contentSub">— ITEMS —</div>
+      </div>
+      <div class="content-actions">
+        <input type="text" class="search-box" id="searchBox" placeholder="搜尋項目 / 備註 / 標籤…">
+        <button class="btn" id="composeModeBtn">📋 組合報價單</button>
+        <button class="btn primary" id="addItemBtn">+ 新增項目</button>
+      </div>
+    </div>
+
+    <div id="itemFormWrap"></div>
+
+    <div class="table-wrap">
+      <table class="q-table">
+        <thead>
+          <tr>
+            <th class="col-check" id="thCheck" style="display:none"></th>
+            <th class="col-name">服務項目 / 規格</th>
+            <th class="col-duration">時長</th>
+            <th class="col-price">建議報價</th>
+            <th class="col-equip">器材配置</th>
+            <th class="col-notes">備註</th>
+            <th class="col-tags">標籤</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<!-- Compose Output Modal -->
+<div class="modal-overlay" id="composeModal">
+  <div class="modal modal-large">
+    <h3>報價單組合</h3>
+    <div class="compose-stats" id="composeStats"></div>
+    <div class="compose-output" id="composeOutput"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn" id="composeCloseBtn">關閉</button>
+      <button class="btn primary" id="composeCopyBtn">📋 複製到剪貼簿</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog (replaces native confirm for niceness) -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:400px">
+    <h3 id="confirmTitle">確認</h3>
+    <div id="confirmText" style="font-size:13.5px;color:var(--text-2);line-height:1.65;margin-bottom:18px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" id="confirmCancelBtn">取消</button>
+      <button class="btn danger" id="confirmOkBtn">確定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ STATE & CONSTANTS ============ */
+const STORAGE_KEY = 'shadow_quote_ref_v1';
+const SUPABASE_URL = 'https://bokmluubqcnezjcboogq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJva21sdXVicWNuZXpqY2Jvb2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDI2ODIsImV4cCI6MjA5NTk3ODY4Mn0.W-cvOomywSU2L8xJaX98052_UZqed7rIkALQ_ETxxTw';
+const CLOUD_TABLE = 'workspace_data';
+const CLOUD_TOOL_ID = 'quote';
+const CLOUD_SYNC_DEBOUNCE_MS = 3000;
+const OFFLINE_MODE_KEY = 'shadow_quote_offline_mode';
+
+function defaultState() {
+  return {
+    categories: [
+      { id: 'cat_default', name: '尚未分類' }
+    ],
+    items: [],
+    activeCategoryId: 'cat_default'
+  };
+}
+
+let state = defaultState();
+let editingItemId = null;
+let composeMode = false;
+let composeSelected = new Set();
+let activeTagFilter = null;
+let searchQuery = '';
+let confirmCallback = null;
+
+// Sync state
+let sbClient = null;
+let currentUser = null;
+let syncStatus = 'offline';
+let cloudSyncTimer = null;
+let cloudSyncInFlight = false;
+let cloudLastSavedAt = null;
+let offlineMode = false;
+
+/* ============ STORAGE ============ */
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return migrateState(parsed);
+    }
+  } catch (e) {}
+  return defaultState();
+}
+function migrateState(s) {
+  if (!s.categories || !Array.isArray(s.categories) || s.categories.length === 0) {
+    s.categories = [{ id: 'cat_default', name: '尚未分類' }];
+  }
+  if (!s.items || !Array.isArray(s.items)) s.items = [];
+  // Ensure every item has all fields and a category
+  s.items.forEach(it => {
+    if (!it.id) it.id = uid();
+    if (!it.name) it.name = '';
+    if (!it.duration) it.duration = '';
+    if (it.price == null) it.price = '';
+    if (!it.equipment) it.equipment = '';
+    if (!it.notes) it.notes = '';
+    if (!it.tags) it.tags = [];
+    if (!it.categoryId || !s.categories.find(c => c.id === it.categoryId)) {
+      it.categoryId = s.categories[0].id;
+    }
+  });
+  if (!s.activeCategoryId || !s.categories.find(c => c.id === s.activeCategoryId)) {
+    s.activeCategoryId = s.categories[0].id;
+  }
+  return s;
+}
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch (e) { showToast('儲存失敗:' + e.message); }
+  scheduleCloudSync();
+}
+function uid() {
+  return 'i_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+/* ============ CLOUD SYNC ============ */
+function initSupabase() {
+  if (!window.supabase || !window.supabase.createClient) return false;
+  if (sbClient) return true;
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true }
+  });
+  return true;
+}
+function setSyncStatus(status) {
+  syncStatus = status;
+  const dot = document.getElementById('userSyncDot');
+  if (dot) dot.className = 'sync-dot ' + status;
+  const menu = document.getElementById('userMenu');
+  if (menu && menu.classList.contains('show')) renderUserMenu();
+}
+async function loadFromCloud() {
+  if (!sbClient || !currentUser) return null;
+  setSyncStatus('syncing');
+  try {
+    const { data, error } = await sbClient
+      .from(CLOUD_TABLE)
+      .select('data, updated_at')
+      .eq('user_id', currentUser.id)
+      .eq('tool_id', CLOUD_TOOL_ID)
+      .maybeSingle();
+    if (error) throw error;
+    setSyncStatus('synced');
+    if (!data) return null;
+    cloudLastSavedAt = data.updated_at;
+    return data.data;
+  } catch (e) {
+    console.error('Load from cloud failed', e);
+    setSyncStatus('error');
+    showToast('雲端載入失敗:' + e.message);
+    return null;
+  }
+}
+async function saveToCloud() {
+  if (!sbClient || !currentUser || offlineMode) return;
+  if (cloudSyncInFlight) {
+    if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(saveToCloud, CLOUD_SYNC_DEBOUNCE_MS);
+    return;
+  }
+  cloudSyncInFlight = true;
+  setSyncStatus('syncing');
+  try {
+    const { error } = await sbClient
+      .from(CLOUD_TABLE)
+      .upsert({
+        user_id: currentUser.id,
+        tool_id: CLOUD_TOOL_ID,
+        data: state,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,tool_id' });
+    if (error) throw error;
+    cloudLastSavedAt = new Date().toISOString();
+    setSyncStatus('synced');
+  } catch (e) {
+    console.error('Save to cloud failed', e);
+    setSyncStatus('error');
+    showToast('雲端儲存失敗:' + e.message);
+  } finally {
+    cloudSyncInFlight = false;
+  }
+}
+function scheduleCloudSync() {
+  if (!currentUser || offlineMode) return;
+  if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(saveToCloud, CLOUD_SYNC_DEBOUNCE_MS);
+}
+
+/* ============ UTILS ============ */
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[<>&"']/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function showConfirm(title, text, onConfirm) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmText').textContent = text;
+  confirmCallback = onConfirm;
+  document.getElementById('confirmModal').classList.add('show');
+}
+function fmtPrice(p) {
+  if (p == null || p === '') return '';
+  const n = parseFloat(String(p).replace(/[^0-9.-]/g, ''));
+  if (isNaN(n)) return String(p); // keep original text if not parseable
+  return 'NT$' + n.toLocaleString('en-US');
+}
+
+/* ============ CATEGORIES ============ */
+function getActiveCategory() {
+  return state.categories.find(c => c.id === state.activeCategoryId) || state.categories[0];
+}
+function addCategory() {
+  const name = prompt('新分類名稱?');
+  if (!name || !name.trim()) return;
+  const id = 'cat_' + uid();
+  state.categories.push({ id, name: name.trim() });
+  state.activeCategoryId = id;
+  saveState();
+  renderAll();
+}
+function renameCategory(catId) {
+  const cat = state.categories.find(c => c.id === catId);
+  if (!cat) return;
+  const name = prompt('分類名稱:', cat.name);
+  if (!name || !name.trim()) return;
+  cat.name = name.trim();
+  saveState();
+  renderAll();
+}
+function deleteCategory(catId) {
+  if (state.categories.length <= 1) {
+    showToast('至少要保留一個分類');
+    return;
+  }
+  const cat = state.categories.find(c => c.id === catId);
+  if (!cat) return;
+  const itemCount = state.items.filter(it => it.categoryId === catId).length;
+  showConfirm(
+    '刪除分類',
+    `確定要刪除「${cat.name}」?` + (itemCount > 0 ? ` 此分類下的 ${itemCount} 個項目也會一起刪除。` : ''),
+    () => {
+      state.categories = state.categories.filter(c => c.id !== catId);
+      state.items = state.items.filter(it => it.categoryId !== catId);
+      if (state.activeCategoryId === catId) state.activeCategoryId = state.categories[0].id;
+      saveState();
+      renderAll();
+      showToast('分類已刪除');
+    }
+  );
+}
+
+/* ============ ITEMS ============ */
+function showAddItemForm() {
+  editingItemId = null;
+  renderItemForm({
+    name: '',
+    duration: '',
+    price: '',
+    equipment: '',
+    notes: '',
+    tags: []
+  });
+}
+function showEditItemForm(itemId) {
+  const it = state.items.find(x => x.id === itemId);
+  if (!it) return;
+  editingItemId = itemId;
+  renderItemForm(it);
+}
+function renderItemForm(data) {
+  const wrap = document.getElementById('itemFormWrap');
+  const isEdit = !!editingItemId;
+  wrap.innerHTML = `
+    <div class="item-form">
+      <div style="font-size:11px;color:var(--text-3);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px">
+        ${isEdit ? '編輯項目' : '新增項目'}
+      </div>
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>服務項目 / 規格</label>
+          <input type="text" id="fName" value="${escapeHtml(data.name)}" placeholder="例如:醫師形象照拍攝(半天)">
+        </div>
+        <div class="form-field">
+          <label>時長</label>
+          <input type="text" id="fDuration" value="${escapeHtml(data.duration)}" placeholder="例如:4 小時 / 半天">
+        </div>
+        <div class="form-field">
+          <label>建議報價 (NT$)</label>
+          <input type="text" id="fPrice" value="${escapeHtml(data.price)}" placeholder="例如:6000">
+        </div>
+        <div class="form-field full">
+          <label>器材配置</label>
+          <textarea id="fEquipment" placeholder="例如:Aputure Amaran 200Xs + Ray 120c 雙燈,LightDome II 柔光罩">${escapeHtml(data.equipment)}</textarea>
+        </div>
+        <div class="form-field full">
+          <label>備註</label>
+          <textarea id="fNotes" placeholder="例如:雙北免交通,超時 NT$1,500/hr,含 1 次勘景">${escapeHtml(data.notes)}</textarea>
+        </div>
+        <div class="form-field full">
+          <label>標籤 (Enter 新增,例如:常用、⭐推薦、長案)</label>
+          <div class="tag-input-wrap" id="tagInputWrap">
+            <input type="text" class="tag-input-field" id="fTagInput" placeholder="輸入後按 Enter…">
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" id="formCancelBtn">取消</button>
+        <button class="btn primary" id="formSaveBtn">${isEdit ? '儲存修改' : '新增'}</button>
+      </div>
+    </div>
+  `;
+  // Render initial tag chips
+  const tagWrap = document.getElementById('tagInputWrap');
+  const tagInput = document.getElementById('fTagInput');
+  const currentTags = [...(data.tags || [])];
+
+  function refreshChips() {
+    // Remove existing chips (keep the input)
+    [...tagWrap.querySelectorAll('.tag-input-chip')].forEach(c => c.remove());
+    currentTags.forEach((t, idx) => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-input-chip';
+      chip.innerHTML = `<span>${escapeHtml(t)}</span><span class="x" data-idx="${idx}">×</span>`;
+      tagWrap.insertBefore(chip, tagInput);
+    });
+    tagWrap.querySelectorAll('.x').forEach(x => {
+      x.addEventListener('click', () => {
+        currentTags.splice(parseInt(x.dataset.idx), 1);
+        refreshChips();
+      });
+    });
+  }
+  refreshChips();
+
+  tagInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = tagInput.value.trim();
+      if (v && !currentTags.includes(v)) {
+        currentTags.push(v);
+        tagInput.value = '';
+        refreshChips();
+      }
+    } else if (e.key === 'Backspace' && tagInput.value === '' && currentTags.length > 0) {
+      currentTags.pop();
+      refreshChips();
+    }
+  });
+
+  document.getElementById('formCancelBtn').addEventListener('click', () => {
+    wrap.innerHTML = '';
+    editingItemId = null;
+  });
+
+  document.getElementById('formSaveBtn').addEventListener('click', () => {
+    const name = document.getElementById('fName').value.trim();
+    if (!name) {
+      showToast('請填寫服務項目');
+      return;
+    }
+    const payload = {
+      name,
+      duration: document.getElementById('fDuration').value.trim(),
+      price: document.getElementById('fPrice').value.trim(),
+      equipment: document.getElementById('fEquipment').value.trim(),
+      notes: document.getElementById('fNotes').value.trim(),
+      tags: [...currentTags],
+      categoryId: state.activeCategoryId
+    };
+    if (editingItemId) {
+      const it = state.items.find(x => x.id === editingItemId);
+      if (it) Object.assign(it, payload);
+      showToast('已更新');
+    } else {
+      payload.id = uid();
+      state.items.push(payload);
+      showToast('已新增');
+    }
+    editingItemId = null;
+    wrap.innerHTML = '';
+    saveState();
+    renderAll();
+  });
+
+  document.getElementById('fName').focus();
+}
+
+function deleteItem(itemId) {
+  const it = state.items.find(x => x.id === itemId);
+  if (!it) return;
+  showConfirm('刪除項目', `確定要刪除「${it.name}」?`, () => {
+    state.items = state.items.filter(x => x.id !== itemId);
+    saveState();
+    renderAll();
+    showToast('已刪除');
+  });
+}
+
+function duplicateItem(itemId) {
+  const it = state.items.find(x => x.id === itemId);
+  if (!it) return;
+  const copy = { ...it, id: uid(), name: it.name + ' (副本)', tags: [...it.tags] };
+  state.items.push(copy);
+  saveState();
+  renderAll();
+  showToast('已複製');
+}
+
+/* ============ COPY / COMPOSE ============ */
+function formatItemAsText(it) {
+  const lines = [];
+  lines.push('服務項目:' + (it.name || ''));
+  if (it.duration) lines.push('時長:' + it.duration);
+  if (it.price !== '' && it.price != null) lines.push('費用:' + fmtPrice(it.price));
+  if (it.equipment) lines.push('器材:' + it.equipment);
+  if (it.notes) lines.push('備註:' + it.notes);
+  return lines.join('\n');
+}
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('已複製到剪貼簿');
+  } catch (e) {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('已複製到剪貼簿'); }
+    catch (err) { showToast('複製失敗,請手動選取'); }
+    document.body.removeChild(ta);
+  }
+}
+function copyItem(itemId) {
+  const it = state.items.find(x => x.id === itemId);
+  if (!it) return;
+  copyText(formatItemAsText(it));
+}
+
+function toggleComposeMode() {
+  composeMode = !composeMode;
+  composeSelected.clear();
+  renderAll();
+}
+function toggleComposeItem(itemId) {
+  if (composeSelected.has(itemId)) composeSelected.delete(itemId);
+  else composeSelected.add(itemId);
+  updateComposeBanner();
+  // Update only the row visual
+  const row = document.querySelector(`tr[data-item-id="${itemId}"]`);
+  if (row) row.classList.toggle('selected', composeSelected.has(itemId));
+}
+function updateComposeBanner() {
+  document.getElementById('composeCount').textContent = composeSelected.size;
+}
+function buildComposedQuote() {
+  if (composeSelected.size === 0) {
+    showToast('請先勾選項目');
+    return;
+  }
+  // Preserve display order: collect IDs in the order they appear in state.items
+  const selectedItems = state.items.filter(it => composeSelected.has(it.id));
+
+  const lines = [];
+  let total = 0;
+  let hasUnparseable = false;
+
+  selectedItems.forEach((it, idx) => {
+    lines.push(`【${idx + 1}】 ${it.name}`);
+    if (it.duration) lines.push(`時長:${it.duration}`);
+    if (it.price !== '' && it.price != null) {
+      lines.push(`費用:${fmtPrice(it.price)}`);
+      const n = parseFloat(String(it.price).replace(/[^0-9.-]/g, ''));
+      if (isNaN(n)) hasUnparseable = true;
+      else total += n;
+    }
+    if (it.equipment) lines.push(`器材:${it.equipment}`);
+    if (it.notes) lines.push(`備註:${it.notes}`);
+    lines.push(''); // blank between items
+  });
+
+  lines.push('───────────────');
+  lines.push('小計:NT$' + total.toLocaleString('en-US') + (hasUnparseable ? ' (部分項目價格無法計算)' : ''));
+
+  const output = lines.join('\n');
+  document.getElementById('composeOutput').textContent = output;
+  document.getElementById('composeStats').innerHTML =
+    `共 <strong>${selectedItems.size}</strong> 項 · 小計 <strong>NT$${total.toLocaleString('en-US')}</strong>` +
+    (hasUnparseable ? ' <span style="color:var(--danger)">(部分項目價格未列入)</span>' : '');
+  document.getElementById('composeModal').classList.add('show');
+}
+
+/* ============ RENDERING ============ */
+function getAllTags() {
+  const set = new Set();
+  state.items.forEach(it => (it.tags || []).forEach(t => set.add(t)));
+  return [...set].sort();
+}
+
+function getVisibleItems() {
+  let items = state.items.filter(it => it.categoryId === state.activeCategoryId);
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    // Search across ALL items (not just active category) when searching
+    items = state.items.filter(it => {
+      const blob = [it.name, it.duration, String(it.price), it.equipment, it.notes, (it.tags || []).join(' ')].join(' ').toLowerCase();
+      return blob.includes(q);
+    });
+  }
+
+  if (activeTagFilter) {
+    items = items.filter(it => (it.tags || []).includes(activeTagFilter));
+  }
+
+  return items;
+}
+
+function renderCategoryList() {
+  const wrap = document.getElementById('categoryList');
+  const counts = {};
+  state.items.forEach(it => { counts[it.categoryId] = (counts[it.categoryId] || 0) + 1; });
+
+  wrap.innerHTML = state.categories.map(cat => `
+    <div class="category-item ${cat.id === state.activeCategoryId && !searchQuery ? 'active' : ''}" data-cat-id="${cat.id}">
+      <span class="cat-name">${escapeHtml(cat.name)}</span>
+      <span class="cat-count">${counts[cat.id] || 0}</span>
+      <span class="cat-edit" data-action="rename" title="重新命名">✎</span>
+      <span class="cat-edit" data-action="delete" title="刪除">✕</span>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('.category-item').forEach(el => {
+    const catId = el.dataset.catId;
+    el.addEventListener('click', e => {
+      const action = e.target.dataset.action;
+      if (action === 'rename') { e.stopPropagation(); renameCategory(catId); return; }
+      if (action === 'delete') { e.stopPropagation(); deleteCategory(catId); return; }
+      state.activeCategoryId = catId;
+      searchQuery = '';
+      document.getElementById('searchBox').value = '';
+      activeTagFilter = null;
+      saveState();
+      renderAll();
+    });
+  });
+}
+
+function renderTagFilter() {
+  const tags = getAllTags();
+  const wrap = document.getElementById('tagFilterWrap');
+  if (tags.length === 0) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+  document.getElementById('tagFilterList').innerHTML = tags.map(t => `
+    <div class="tag-filter-chip ${activeTagFilter === t ? 'active' : ''}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>
+  `).join('');
+  document.querySelectorAll('.tag-filter-chip').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = el.dataset.tag;
+      activeTagFilter = activeTagFilter === t ? null : t;
+      renderAll();
+    });
+  });
+}
+
+function renderTable() {
+  const items = getVisibleItems();
+  const tbody = document.getElementById('tableBody');
+  const thCheck = document.getElementById('thCheck');
+  thCheck.style.display = composeMode ? '' : 'none';
+
+  if (items.length === 0) {
+    tbody.innerHTML = `
+      <tr><td colspan="${composeMode ? 8 : 7}">
+        <div class="empty-row">
+          <span class="emoji">📋</span>
+          ${searchQuery ? '沒有符合搜尋的項目' : activeTagFilter ? '此標籤下沒有項目' : '此分類還沒有項目,點右上「+ 新增項目」開始。'}
+        </div>
+      </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map(it => {
+    const tagsHtml = (it.tags || []).map(t => `<span class="row-tag">${escapeHtml(t)}</span>`).join('');
+    const isSel = composeSelected.has(it.id);
+    return `
+      <tr data-item-id="${it.id}" class="${isSel ? 'selected' : ''}">
+        ${composeMode ? `<td class="col-check"><input type="checkbox" data-action="select" ${isSel ? 'checked' : ''} style="cursor:pointer;width:16px;height:16px;accent-color:var(--accent)"></td>` : ''}
+        <td class="col-name"><div class="cell-name">${escapeHtml(it.name)}</div></td>
+        <td class="col-duration"><div class="cell-duration">${escapeHtml(it.duration) || '—'}</div></td>
+        <td class="col-price"><div class="cell-price ${!it.price ? 'empty' : ''}">${it.price ? fmtPrice(it.price) : '—'}</div></td>
+        <td class="col-equip"><div class="cell-equip">${escapeHtml(it.equipment) || '—'}</div></td>
+        <td class="col-notes"><div class="cell-notes">${escapeHtml(it.notes) || '—'}</div></td>
+        <td class="col-tags"><div class="cell-tags">${tagsHtml}</div></td>
+        <td class="col-actions">
+          <div class="row-actions">
+            <button class="row-icon-btn" data-action="copy" title="複製整列">⎘</button>
+            <button class="row-icon-btn" data-action="edit" title="編輯">✎</button>
+            <button class="row-icon-btn" data-action="duplicate" title="複製一份">＋</button>
+            <button class="row-icon-btn danger" data-action="delete" title="刪除">✕</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('tr[data-item-id]').forEach(row => {
+    const itemId = row.dataset.itemId;
+    row.querySelectorAll('[data-action]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        const action = el.dataset.action;
+        if (action === 'copy') copyItem(itemId);
+        else if (action === 'edit') showEditItemForm(itemId);
+        else if (action === 'duplicate') duplicateItem(itemId);
+        else if (action === 'delete') deleteItem(itemId);
+        else if (action === 'select') toggleComposeItem(itemId);
+      });
+    });
+    if (composeMode) {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', e => {
+        // Don't toggle if the click was on an action button
+        if (e.target.closest('[data-action]')) return;
+        toggleComposeItem(itemId);
+        // Sync checkbox
+        const cb = row.querySelector('input[type=checkbox]');
+        if (cb) cb.checked = composeSelected.has(itemId);
+      });
+    }
+  });
+}
+
+function renderContentHeader() {
+  const cat = getActiveCategory();
+  const titleEl = document.getElementById('contentTitle');
+  const subEl = document.getElementById('contentSub');
+  if (searchQuery) {
+    titleEl.textContent = '搜尋結果';
+    subEl.textContent = '"' + searchQuery + '" — across all categories';
+  } else {
+    titleEl.textContent = cat ? cat.name : '所有項目';
+    subEl.textContent = '— ' + (cat ? cat.name.toUpperCase() : 'ALL') + ' —';
+  }
+  document.getElementById('composeBanner').style.display = composeMode ? '' : 'none';
+  const composeBtn = document.getElementById('composeModeBtn');
+  composeBtn.classList.toggle('active', composeMode);
+  composeBtn.textContent = composeMode ? '📋 退出組合模式' : '📋 組合報價單';
+  updateComposeBanner();
+}
+
+function renderAll() {
+  renderCategoryList();
+  renderTagFilter();
+  renderContentHeader();
+  renderTable();
+}
+
+/* ============ THEME ============ */
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('shadow_ledger_theme', next); } catch (e) {}
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', next === 'light' ? '#faf8f3' : '#0e0e10');
+  updateThemeIcon();
+}
+function updateThemeIcon() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  document.getElementById('iconSun').style.display = cur === 'dark' ? '' : 'none';
+  document.getElementById('iconMoon').style.display = cur === 'light' ? '' : 'none';
+}
+
+/* ============ AUTH ============ */
+let authMode = 'signin';
+function showAuthGate() { document.getElementById('authGate').style.display = ''; }
+function hideAuthGate() { document.getElementById('authGate').style.display = 'none'; }
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg; el.classList.add('show');
+}
+function clearAuthError() {
+  const el = document.getElementById('authError');
+  el.classList.remove('show'); el.textContent = '';
+}
+function updateAuthModeUI() {
+  const btn = document.getElementById('authSubmit');
+  const txt = document.getElementById('authModeText');
+  const sw = document.getElementById('authModeSwitch');
+  if (authMode === 'signin') {
+    btn.textContent = '登入'; txt.textContent = '還沒有帳號?'; sw.textContent = '註冊新帳號';
+  } else {
+    btn.textContent = '註冊'; txt.textContent = '已經有帳號了?'; sw.textContent = '回到登入';
+  }
+}
+async function handleAuthSubmit(e) {
+  e.preventDefault(); clearAuthError();
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  if (!email || !password) return;
+  if (password.length < 6) { showAuthError('密碼至少 6 個字元'); return; }
+  const btn = document.getElementById('authSubmit');
+  btn.disabled = true;
+  btn.textContent = authMode === 'signin' ? '登入中…' : '註冊中…';
+  try {
+    if (!initSupabase()) throw new Error('Supabase SDK 未載入');
+    let result;
+    if (authMode === 'signin') {
+      result = await sbClient.auth.signInWithPassword({ email, password });
+    } else {
+      result = await sbClient.auth.signUp({ email, password });
+    }
+    if (result.error) throw result.error;
+  } catch (err) {
+    showAuthError(err.message || '登入失敗');
+    btn.disabled = false;
+    updateAuthModeUI();
+  }
+}
+function setOfflineMode() {
+  offlineMode = true;
+  try { localStorage.setItem(OFFLINE_MODE_KEY, '1'); } catch (e) {}
+  hideAuthGate();
+  bootstrapAppWithLocalData();
+}
+async function handleLogout() {
+  showConfirm('登出', '確定要登出?本機資料會保留,可重新登入。', async () => {
+    if (sbClient) { try { await sbClient.auth.signOut(); } catch (e) {} }
+    window.location.reload();
+  });
+}
+function renderUserMenu() {
+  const menu = document.getElementById('userMenu');
+  if (!menu) return;
+  if (!currentUser && offlineMode) {
+    menu.innerHTML = `
+      <div class="user-menu-info">
+        <div class="user-menu-email">離線模式</div>
+        <div class="user-menu-status">資料只存在這個瀏覽器中</div>
+      </div>
+      <div class="user-menu-item accent" id="menuSigninBtn"><span>☁</span><span>登入帳號 (啟用雲端同步)</span></div>`;
+    document.getElementById('menuSigninBtn').addEventListener('click', () => {
+      try { localStorage.removeItem(OFFLINE_MODE_KEY); } catch (e) {}
+      offlineMode = false;
+      showAuthGate();
+      updateAuthModeUI();
+      menu.classList.remove('show');
+    });
+    return;
+  }
+  if (!currentUser) return;
+  const statusText = { synced: '✓ 已同步', syncing: '同步中…', offline: '離線', error: '⚠ 同步錯誤' }[syncStatus] || '未知';
+  const lastSavedText = cloudLastSavedAt ? new Date(cloudLastSavedAt).toLocaleString('zh-TW', { hour12: false }) : '尚未同步';
+  menu.innerHTML = `
+    <div class="user-menu-info">
+      <div class="user-menu-email">${escapeHtml(currentUser.email || '')}</div>
+      <div class="user-menu-status">
+        <span class="sync-dot ${syncStatus}" style="display:inline-block;width:6px;height:6px;border-radius:50%"></span>
+        <span>${escapeHtml(statusText)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-3);font-family:var(--mono);margin-top:4px">上次同步:${escapeHtml(lastSavedText)}</div>
+    </div>
+    <div class="user-menu-item" id="menuSyncBtn"><span>🔄</span><span>立即同步</span></div>
+    <div class="user-menu-item danger" id="menuLogoutBtn"><span>⏏</span><span>登出</span></div>`;
+  document.getElementById('menuSyncBtn').addEventListener('click', () => { saveToCloud(); menu.classList.remove('show'); });
+  document.getElementById('menuLogoutBtn').addEventListener('click', () => { menu.classList.remove('show'); handleLogout(); });
+}
+function toggleUserMenu() {
+  const menu = document.getElementById('userMenu');
+  if (menu.classList.contains('show')) {
+    menu.classList.remove('show');
+    return;
+  }
+  renderUserMenu();
+  menu.classList.add('show');
+  setTimeout(() => {
+    const closer = e => {
+      const pill = document.getElementById('userPill');
+      if (!menu.contains(e.target) && !pill.contains(e.target)) {
+        menu.classList.remove('show');
+        document.removeEventListener('mousedown', closer);
+      }
+    };
+    document.addEventListener('mousedown', closer);
+  }, 0);
+}
+
+/* ============ MIGRATION ============ */
+function hasMeaningfulData(s) {
+  return s && s.items && s.items.length > 0;
+}
+function migrationUpload() {
+  document.getElementById('migrationDialog').classList.remove('show');
+  saveToCloud().then(() => showToast('本機資料已上傳到雲端'));
+}
+function migrationSkip() {
+  document.getElementById('migrationDialog').classList.remove('show');
+  state = defaultState();
+  saveState();
+  renderAll();
+  setSyncStatus('synced');
+}
+
+/* ============ BOOTSTRAP ============ */
+function bootstrapAppWithLocalData() {
+  hideAuthGate();
+  state = loadState();
+  renderAll();
+  updateThemeIcon();
+  if (currentUser) {
+    document.getElementById('userPillWrap').style.display = '';
+    document.getElementById('userEmail').textContent = currentUser.email || '';
+  } else if (offlineMode) {
+    document.getElementById('userPillWrap').style.display = '';
+    document.getElementById('userEmail').textContent = '離線模式';
+    document.getElementById('userSyncDot').className = 'sync-dot offline';
+  }
+}
+async function bootstrapAppFromCloud() {
+  hideAuthGate();
+  document.getElementById('userPillWrap').style.display = '';
+  document.getElementById('userEmail').textContent = currentUser.email || '';
+  setSyncStatus('syncing');
+  const cloudData = await loadFromCloud();
+  const localState = loadState();
+  const localHasContent = hasMeaningfulData(localState);
+  const cloudHasContent = cloudData && hasMeaningfulData(cloudData);
+  if (cloudHasContent) {
+    state = migrateState(cloudData);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    renderAll();
+    setSyncStatus('synced');
+  } else if (localHasContent) {
+    state = localState;
+    renderAll();
+    document.getElementById('migrationDialog').classList.add('show');
+  } else {
+    state = localState;
+    renderAll();
+    setSyncStatus('synced');
+  }
+}
+
+/* ============ INIT ============ */
+function wireEvents() {
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  document.getElementById('addCategoryBtn').addEventListener('click', addCategory);
+  document.getElementById('addItemBtn').addEventListener('click', showAddItemForm);
+  document.getElementById('composeModeBtn').addEventListener('click', toggleComposeMode);
+  document.getElementById('composeCancelBtn').addEventListener('click', toggleComposeMode);
+  document.getElementById('composeBuildBtn').addEventListener('click', buildComposedQuote);
+  document.getElementById('composeCloseBtn').addEventListener('click', () => document.getElementById('composeModal').classList.remove('show'));
+  document.getElementById('composeCopyBtn').addEventListener('click', () => copyText(document.getElementById('composeOutput').textContent));
+
+  document.getElementById('searchBox').addEventListener('input', e => {
+    searchQuery = e.target.value.trim();
+    renderAll();
+  });
+
+  // User pill
+  document.getElementById('userPill').addEventListener('click', toggleUserMenu);
+
+  // Auth
+  document.getElementById('authForm').addEventListener('submit', handleAuthSubmit);
+  document.getElementById('authModeSwitch').addEventListener('click', () => {
+    authMode = authMode === 'signin' ? 'signup' : 'signin';
+    clearAuthError();
+    updateAuthModeUI();
+  });
+  document.getElementById('authOfflineBtn').addEventListener('click', setOfflineMode);
+
+  // Migration
+  document.getElementById('migrationUploadBtn').addEventListener('click', migrationUpload);
+  document.getElementById('migrationSkipBtn').addEventListener('click', migrationSkip);
+
+  // Confirm modal
+  document.getElementById('confirmCancelBtn').addEventListener('click', () => {
+    document.getElementById('confirmModal').classList.remove('show');
+    confirmCallback = null;
+  });
+  document.getElementById('confirmOkBtn').addEventListener('click', () => {
+    document.getElementById('confirmModal').classList.remove('show');
+    if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+  });
+
+  // ESC closes modals
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show'));
+      document.getElementById('userMenu').classList.remove('show');
+    }
+  });
+}
+
+(async function bootstrap() {
+  wireEvents();
+  // Pre-render so page is never blank
+  try { bootstrapAppWithLocalData(); } catch (e) { console.error(e); }
+
+  let done = false;
+  const watchdog = setTimeout(() => { if (!done) { done = true; } }, 4000);
+  const finish = () => { done = true; clearTimeout(watchdog); };
+
+  try {
+    try {
+      if (localStorage.getItem(OFFLINE_MODE_KEY) === '1') {
+        offlineMode = true;
+        finish();
+        return;
+      }
+    } catch (e) {}
+
+    if (!initSupabase()) {
+      offlineMode = true;
+      document.getElementById('userPillWrap').style.display = '';
+      document.getElementById('userEmail').textContent = '離線模式 (SDK 未載入)';
+      finish();
+      return;
+    }
+
+    try {
+      const { data: { session } } = await sbClient.auth.getSession();
+      if (session && session.user) {
+        currentUser = session.user;
+        await bootstrapAppFromCloud();
+      } else {
+        showAuthGate();
+        updateAuthModeUI();
+      }
+    } catch (e) {
+      console.error('Session check failed', e);
+      showAuthGate();
+      updateAuthModeUI();
+    }
+    finish();
+
+    sbClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session && session.user) {
+        if (currentUser && currentUser.id === session.user.id) return;
+        currentUser = session.user;
+        try { localStorage.removeItem(OFFLINE_MODE_KEY); } catch (e) {}
+        await bootstrapAppFromCloud();
+      } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+      }
+    });
+  } catch (err) {
+    console.error('Bootstrap critical', err);
+    finish();
+  }
+})();
+</script>
+</body>
+</html>
