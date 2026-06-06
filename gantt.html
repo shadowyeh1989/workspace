@@ -166,7 +166,7 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5)}
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useEffect,useRef}=React;
-const PC=['#d4a05c','#6a9c6a','#f59e0b','#c87f7f','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+const PC=['var(--accent)','#6a9c6a','#f59e0b','#c87f7f','#8b5cf6','#ec4899','#06b6d4','#f97316'];
 const today=new Date();today.setHours(0,0,0,0);
 const ds=d=>d.toISOString().slice(0,10);
 const ad=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
@@ -720,9 +720,9 @@ function App(){
   const months=[];let cm=null;
   dates.forEach((d,i)=>{const m=d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0');if(m!==cm){months.push({l:m,s:i});cm=m;}});
 
-  const B=(bg='transparent',c='#a1a1a6',full=false)=>({background:bg,color:c,border:'none',borderRadius:8,padding:'7px 13px',fontSize:12,cursor:'pointer',fontWeight:500,width:full?'100%':undefined});
-  const lbl={display:'block',fontSize:10,color:'#a1a1a6',marginBottom:5,fontWeight:600,letterSpacing:'0.05em',textTransform:'uppercase'};
-  const inp={width:'100%',background:'#18181b',border:'1px solid #2e2e33',borderRadius:8,padding:'7px 11px',color:'#ededee',fontSize:12,marginBottom:14,boxSizing:'border-box',outline:'none'};
+  const B=(bg='transparent',c='var(--text-2)',full=false)=>({background:bg,color:c,border:'none',borderRadius:8,padding:'7px 13px',fontSize:12,cursor:'pointer',fontWeight:500,width:full?'100%':undefined});
+  const lbl={display:'block',fontSize:10,color:'var(--text-2)',marginBottom:5,fontWeight:600,letterSpacing:'0.05em',textTransform:'uppercase'};
+  const inp={width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 11px',color:'var(--text)',fontSize:12,marginBottom:14,boxSizing:'border-box',outline:'none'};
 
   // ===== Backup badge label + color =====
   const lastBackup=Math.max(bMeta.lastManualBackup||0,bMeta.lastAutoBackup||0)||null;
@@ -749,11 +749,11 @@ function App(){
     neutral:{bg:'var(--surface-2)',fg:'var(--text-2)',br:'var(--border)'},
     warn:{bg:'var(--accent-soft)',fg:'var(--accent)',br:'var(--accent)'},
     danger:{bg:'var(--danger-bg)',fg:'var(--danger)',br:'var(--danger)'},
-    auto:{bg:'rgba(106,156,106,0.1)',fg:'#6a9c6a',br:'rgba(106,156,106,0.4)'}
+    auto:{bg:'rgba(106,156,106,0.1)',fg:'var(--success)',br:'rgba(106,156,106,0.4)'}
   }[bClass];
 
   // ===== Sync dot color =====
-  const syncDotColor={synced:'#6a9c6a',syncing:'#d4a05c',offline:'var(--text-3)',error:'var(--danger)'}[syncStatus]||'var(--text-3)';
+  const syncDotColor={synced:'var(--success)',syncing:'var(--accent)',offline:'var(--text-3)',error:'var(--danger)'}[syncStatus]||'var(--text-3)';
   const syncStatusText={synced:'✓ 已同步',syncing:'同步中…',offline:'離線',error:'⚠ 同步錯誤'}[syncStatus]||'未知';
 
   // ===== Theme toggle =====
@@ -763,7 +763,7 @@ function App(){
     document.documentElement.setAttribute('data-theme',next);
     try{localStorage.setItem('shadow_ledger_theme',next);}catch(e){}
     const meta=document.querySelector('meta[name="theme-color"]');
-    if(meta)meta.setAttribute('content',next==='light'?'#faf8f3':'#0e0e10');
+    if(meta)meta.setAttribute('content',next==='light'?'#faf8f3':'var(--bg)');
     setTick(t=>t+1);
   }
 
@@ -800,49 +800,49 @@ function App(){
           {/* Workspace switcher */}
           <div style={{position:'relative'}} ref={wsRef}>
             <button onClick={()=>setWsMenu(v=>!v)}
-              style={{...B('#232327'),display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:'1px solid #2e2e33',borderRadius:8}}>
+              style={{...B('var(--surface-2)'),display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:'1px solid var(--border)',borderRadius:8}}>
               <span style={{fontSize:11}}>🗂</span>
               <span style={{maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:12}}>
                 {workspaces.find(w=>w.id===wsId)?.name||'工作區'}
               </span>
-              <span style={{fontSize:9,color:'#a1a1a6'}}>▼</span>
+              <span style={{fontSize:9,color:'var(--text-2)'}}>▼</span>
             </button>
             {wsMenu&&(
               <>
                 <div style={{position:'fixed',inset:0,zIndex:299}} onClick={()=>{setWsMenu(false);setWsForm(null);}}/>
-                <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,zIndex:300,background:'#232327',border:'1px solid #2e2e33',borderRadius:12,padding:6,minWidth:200,boxShadow:'0 8px 32px #000c'}}>
-                  <div style={{fontSize:9,color:'#6e6e73',padding:'4px 10px 6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>工作區</div>
+                <div style={{position:'absolute',top:'calc(100% + 6px)',right:0,zIndex:300,background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:12,padding:6,minWidth:200,boxShadow:'0 8px 32px #000c'}}>
+                  <div style={{fontSize:9,color:'var(--text-3)',padding:'4px 10px 6px',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>工作區</div>
                   {workspaces.map(w=>(
-                    <div key={w.id} style={{display:'flex',alignItems:'center',borderRadius:7,background:w.id===wsId?'#2e2e33':'transparent'}}>
+                    <div key={w.id} style={{display:'flex',alignItems:'center',borderRadius:7,background:w.id===wsId?'var(--border)':'transparent'}}>
                       <div onClick={()=>switchWs(w.id)}
-                        style={{flex:1,padding:'8px 10px',fontSize:12,color:w.id===wsId?'#ededee':'#a1a1a6',cursor:'pointer',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        style={{flex:1,padding:'8px 10px',fontSize:12,color:w.id===wsId?'var(--text)':'var(--text-2)',cursor:'pointer',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                         {w.id===wsId?'● ':'○ '}{w.name}
                       </div>
                       {wsForm===w.id?(
                         <div style={{display:'flex',gap:4,padding:'4px 6px'}} onClick={e=>e.stopPropagation()}>
                           <input value={wsName} onChange={e=>setWsName(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter')renameWs(w.id);if(e.key==='Escape')setWsForm(null);}}
-                            style={{width:90,background:'#18181b',border:'1px solid #d4a05c',borderRadius:5,padding:'2px 6px',color:'#ededee',fontSize:11,outline:'none'}}/>
-                          <button onClick={()=>renameWs(w.id)} style={{...B('#d4a05c','#fff'),padding:'2px 7px',fontSize:11}}>✓</button>
+                            style={{width:90,background:'var(--surface)',border:'1px solid var(--accent)',borderRadius:5,padding:'2px 6px',color:'var(--text)',fontSize:11,outline:'none'}}/>
+                          <button onClick={()=>renameWs(w.id)} style={{...B('var(--accent)','#fff'),padding:'2px 7px',fontSize:11}}>✓</button>
                         </div>
                       ):(
                         <div style={{display:'flex',gap:2,padding:'0 6px'}}>
-                          <button onClick={e=>{e.stopPropagation();setWsForm(w.id);setWsName(w.name);}} style={{...B(),padding:'3px 5px',fontSize:11,color:'#6e6e73'}}>✎</button>
-                          {workspaces.length>1&&<button onClick={e=>{e.stopPropagation();deleteWs(w.id);}} style={{...B(),padding:'3px 5px',fontSize:11,color:'#4a2828'}}>×</button>}
+                          <button onClick={e=>{e.stopPropagation();setWsForm(w.id);setWsName(w.name);}} style={{...B(),padding:'3px 5px',fontSize:11,color:'var(--text-3)'}}>✎</button>
+                          {workspaces.length>1&&<button onClick={e=>{e.stopPropagation();deleteWs(w.id);}} style={{...B(),padding:'3px 5px',fontSize:11,color:'var(--danger-bg)'}}>×</button>}
                         </div>
                       )}
                     </div>
                   ))}
-                  <div style={{height:1,background:'#2e2e33',margin:'4px 0'}}/>
+                  <div style={{height:1,background:'var(--border)',margin:'4px 0'}}/>
                   {wsForm==='add'?(
                     <div style={{display:'flex',gap:4,padding:'4px 6px'}} onClick={e=>e.stopPropagation()}>
                       <input value={wsName} onChange={e=>setWsName(e.target.value)} autoFocus placeholder="工作區名稱…" onKeyDown={e=>{if(e.key==='Enter')addWs();if(e.key==='Escape')setWsForm(null);}}
-                        style={{flex:1,background:'#18181b',border:'1px solid #d4a05c',borderRadius:5,padding:'4px 8px',color:'#ededee',fontSize:12,outline:'none'}}/>
-                      <button onClick={addWs} style={{...B('#d4a05c','#fff'),padding:'4px 10px',fontSize:12}}>新增</button>
+                        style={{flex:1,background:'var(--surface)',border:'1px solid var(--accent)',borderRadius:5,padding:'4px 8px',color:'var(--text)',fontSize:12,outline:'none'}}/>
+                      <button onClick={addWs} style={{...B('var(--accent)','#fff'),padding:'4px 10px',fontSize:12}}>新增</button>
                     </div>
                   ):(
                     <div onClick={()=>{setWsForm('add');setWsName('');}}
-                      style={{padding:'8px 10px',fontSize:12,color:'#d4a05c',cursor:'pointer',borderRadius:7,display:'flex',alignItems:'center',gap:6}}
-                      onMouseEnter={e=>e.currentTarget.style.background='#232327'}
+                      style={{padding:'8px 10px',fontSize:12,color:'var(--accent)',cursor:'pointer',borderRadius:7,display:'flex',alignItems:'center',gap:6}}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--surface-2)'}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       ＋ 新增工作區
                     </div>
@@ -851,19 +851,19 @@ function App(){
               </>
             )}
           </div>
-          <div style={{width:1,height:20,background:'#2e2e33'}}/>
-          <div style={{display:'flex',gap:3,alignItems:'center',background:'#232327',borderRadius:8,padding:'0 6px'}}>
+          <div style={{width:1,height:20,background:'var(--border)'}}/>
+          <div style={{display:'flex',gap:3,alignItems:'center',background:'var(--surface-2)',borderRadius:8,padding:'0 6px'}}>
             <button onClick={()=>setVDays(v=>Math.max(14,v-14))} style={B()}>－</button>
-            <span style={{fontSize:11,color:'#a1a1a6',padding:'0 4px'}}>{vDays}天</span>
+            <span style={{fontSize:11,color:'var(--text-2)',padding:'0 4px'}}>{vDays}天</span>
             <button onClick={()=>setVDays(v=>Math.min(90,v+14))} style={B()}>＋</button>
           </div>
-          <button onClick={()=>setVStart(v=>ad(v,-14))} style={B('#232327')}>◀</button>
-          <button onClick={()=>setVStart(today)} style={B('#232327')}>今天</button>
-          <button onClick={()=>setVStart(v=>ad(v,14))} style={B('#232327')}>▶</button>
+          <button onClick={()=>setVStart(v=>ad(v,-14))} style={B('var(--surface-2)')}>◀</button>
+          <button onClick={()=>setVStart(today)} style={B('var(--surface-2)')}>今天</button>
+          <button onClick={()=>setVStart(v=>ad(v,14))} style={B('var(--surface-2)')}>▶</button>
           {saveSt==='saving'&&<span style={{fontSize:11,color:'var(--text-2)'}}>儲存中…</span>}
           {saveSt==='saved'&&<span style={{fontSize:11,color:'var(--success)'}}>✓ 已儲存</span>}
           <input ref={fileRef} type="file" accept=".json" onChange={importJSON} style={{display:'none'}}/>
-          <button onClick={()=>fileRef.current.click()} style={B('#6b5234','#d4a05c')}>匯入 JSON</button>
+          <button onClick={()=>fileRef.current.click()} style={B('var(--accent-soft)','var(--accent)')}>匯入 JSON</button>
 
           {/* Backup badge dropdown */}
           <div ref={bMenuRef} style={{position:'relative'}}>
@@ -878,7 +878,7 @@ function App(){
                 <div style={{padding:'8px 10px 6px',fontSize:10,color:'var(--text-3)',letterSpacing:'0.18em',textTransform:'uppercase'}}>備份狀態</div>
                 <div style={{padding:'6px 10px 10px',fontSize:11,color:'var(--text-2)',lineHeight:1.6}}>
                   上次手動匯出:<span style={{color:'var(--text)',fontFamily:'ui-monospace,monospace'}}>{bMeta.lastManualBackup?new Date(bMeta.lastManualBackup).toLocaleString('zh-TW',{hour12:false}):'從未'}</span><br/>
-                  上次自動備份:<span style={{color:autoBkActive?'#6a9c6a':'var(--text)',fontFamily:'ui-monospace,monospace'}}>{bMeta.lastAutoBackup?new Date(bMeta.lastAutoBackup).toLocaleString('zh-TW',{hour12:false}):'從未'}</span>
+                  上次自動備份:<span style={{color:autoBkActive?'var(--success)':'var(--text)',fontFamily:'ui-monospace,monospace'}}>{bMeta.lastAutoBackup?new Date(bMeta.lastAutoBackup).toLocaleString('zh-TW',{hour12:false}):'從未'}</span>
                 </div>
                 <div style={{height:1,background:'var(--border)',margin:'4px 0'}}/>
                 <div onClick={()=>{exportJSON();setBMenuOpen(false);}}
@@ -889,8 +889,8 @@ function App(){
                 </div>
                 {supportsFSA()?(autoBkActive?(
                   <>
-                    <div style={{padding:'8px 10px',fontSize:11,color:'#6a9c6a',display:'flex',alignItems:'center',gap:6}}>
-                      <span style={{width:6,height:6,borderRadius:'50%',background:'#6a9c6a'}}/>
+                    <div style={{padding:'8px 10px',fontSize:11,color:'var(--success)',display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{width:6,height:6,borderRadius:'50%',background:'var(--success)'}}/>
                       自動備份中 · 📁 {autoBkFolderName}
                     </div>
                     <div onClick={disableAutoBackup}
@@ -971,29 +971,29 @@ function App(){
             </svg>
           </button>
 
-          <button onClick={oAP} style={B('#d4a05c','#fff')}>＋ 新增專案</button>
+          <button onClick={oAP} style={B('var(--accent)','#fff')}>＋ 新增專案</button>
         </div>
       </div>
 
-      <div style={{background:'#18181b',borderRadius:12,overflow:'hidden',border:'1px solid #2e2e33'}}>
+      <div style={{background:'var(--surface)',borderRadius:12,overflow:'hidden',border:'1px solid var(--border)'}}>
         <div style={{overflowX:'auto'}}>
           <div style={{minWidth:lw+vDays*cw}}>
-            <div style={{display:'flex',borderBottom:'1px solid #2e2e33',background:'#18181b'}}>
+            <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)'}}>
               <div style={{width:lw,minWidth:lw}}/>
               <div style={{position:'relative',flex:1,height:24}}>
-                {months.map(m=><div key={m.l} style={{position:'absolute',left:m.s*cw,height:'100%',padding:'0 8px',fontSize:10,color:'#a1a1a6',display:'flex',alignItems:'center',fontWeight:600,borderLeft:'1px solid #2e2e33'}}>{m.l}</div>)}
+                {months.map(m=><div key={m.l} style={{position:'absolute',left:m.s*cw,height:'100%',padding:'0 8px',fontSize:10,color:'var(--text-2)',display:'flex',alignItems:'center',fontWeight:600,borderLeft:'1px solid var(--border)'}}>{m.l}</div>)}
               </div>
             </div>
-            <div style={{display:'flex',borderBottom:'1px solid #2e2e33',background:'#18181b'}}>
-              <div style={{width:lw,minWidth:lw,padding:'0 16px',fontSize:10,color:'#6e6e73',display:'flex',alignItems:'center',position:'relative'}}>
+            <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)'}}>
+              <div style={{width:lw,minWidth:lw,padding:'0 16px',fontSize:10,color:'var(--text-3)',display:'flex',alignItems:'center',position:'relative'}}>
                 專案 / 任務
                 <div onMouseDown={sr} style={{position:'absolute',right:0,top:0,bottom:0,width:6,cursor:'col-resize',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <div style={{width:2,height:16,borderRadius:1,background:'#2e2e33'}}/>
+                  <div style={{width:2,height:16,borderRadius:1,background:'var(--border)'}}/>
                 </div>
               </div>
               {dates.map((d,i)=>{
                 const it=i===tOff,we=d.getDay()===0||d.getDay()===6;
-                return<div key={i} style={{width:cw,minWidth:cw,height:28,display:'flex',alignItems:'center',paddingLeft:3,fontSize:9,color:it?'#d4a05c':we?'#6e6e73':'#6e6e73',background:it?'#6b5234':we?'rgba(255,255,255,0.04)':'transparent',fontWeight:it?700:400,borderLeft:'1px solid #2e2e3340'}}>{cw>=22?d.getDate():''}</div>;
+                return<div key={i} style={{width:cw,minWidth:cw,height:28,display:'flex',alignItems:'center',paddingLeft:3,fontSize:9,color:it?'var(--accent)':we?'var(--text-3)':'var(--text-3)',background:it?'var(--accent-soft)':we?'rgba(255,255,255,0.04)':'transparent',fontWeight:it?700:400,borderLeft:'1px solid var(--border)40'}}>{cw>=22?d.getDate():''}</div>;
               })}
             </div>
 
@@ -1002,19 +1002,19 @@ function App(){
                 onDragStart={e=>pDS(e,pi)} onDragOver={e=>pDO(e,pi)} onDrop={e=>pDr(e,pi)}
                 onDragEnd={()=>{setDProj(null);setDoPrj(null);}}
                 onContextMenu={e=>onProjCtx(e,proj.id)}
-                style={{opacity:dProj===pi?.4:1,outline:doPrj===pi&&dProj!==pi?'2px solid #d4a05c':'none',outlineOffset:'-2px'}}>
-                <div style={{display:'flex',borderBottom:'1px solid #2e2e33',background:'#18181b'}}>
+                style={{opacity:dProj===pi?.4:1,outline:doPrj===pi&&dProj!==pi?'2px solid var(--accent)':'none',outlineOffset:'-2px'}}>
+                <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)'}}>
                   <div style={{width:lw,minWidth:lw,display:'flex',alignItems:'center',gap:5,padding:'0 8px',cursor:'pointer'}} onClick={()=>tog(proj.id)}>
-                    <span style={{cursor:'grab',color:'#6e6e73',fontSize:13,flexShrink:0,userSelect:'none'}} onMouseDown={e=>e.stopPropagation()}>⠿</span>
+                    <span style={{cursor:'grab',color:'var(--text-3)',fontSize:13,flexShrink:0,userSelect:'none'}} onMouseDown={e=>e.stopPropagation()}>⠿</span>
                     <div style={{width:3,height:32,borderRadius:2,background:proj.color,flexShrink:0}}/>
-                    <span style={{fontSize:12,color:'#ededee',fontWeight:700,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                      <span style={{color:'#6e6e73',marginRight:4,fontSize:10}}>{proj.collapsed?'▶':'▼'}</span>{proj.name}
+                    <span style={{fontSize:12,color:'var(--text)',fontWeight:700,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      <span style={{color:'var(--text-3)',marginRight:4,fontSize:10}}>{proj.collapsed?'▶':'▼'}</span>{proj.name}
                     </span>
-                    <button onClick={e=>{e.stopPropagation();oEP(proj);}} style={{background:'none',border:'none',color:'#6e6e73',cursor:'pointer',fontSize:12,padding:'2px 4px',flexShrink:0}}>✎</button>
+                    <button onClick={e=>{e.stopPropagation();oEP(proj);}} style={{background:'none',border:'none',color:'var(--text-3)',cursor:'pointer',fontSize:12,padding:'2px 4px',flexShrink:0}}>✎</button>
                     <button onClick={e=>{e.stopPropagation();oAT(proj.id);}} style={{background:proj.color+'22',border:'1px solid '+proj.color+'55',color:proj.color,cursor:'pointer',fontSize:10,padding:'2px 7px',borderRadius:4,flexShrink:0,fontWeight:700}}>＋</button>
                   </div>
                   <div style={{flex:1,height:36,position:'relative'}}>
-                    {tOff>=0&&tOff<vDays&&<div style={{position:'absolute',left:tOff*cw+cw/2,top:0,bottom:0,width:1.5,background:'#d4a05c',opacity:.5,zIndex:2}}/>}
+                    {tOff>=0&&tOff<vDays&&<div style={{position:'absolute',left:tOff*cw+cw/2,top:0,bottom:0,width:1.5,background:'var(--accent)',opacity:.5,zIndex:2}}/>}
                     {proj.tasks.length>0&&(()=>{
                       const ss=proj.tasks.map(t=>+new Date(t.start)),es=proj.tasks.map(t=>+new Date(t.end));
                       const off=db(ds(vStart),ds(new Date(Math.min(...ss)))),len=db(ds(new Date(Math.min(...ss))),ds(new Date(Math.max(...es))))+1;
@@ -1034,19 +1034,19 @@ function App(){
                     <div key={task.id} draggable
                       onDragStart={e=>tDS(e,proj.id,ti)} onDragOver={e=>tDO(e,proj.id,ti)} onDrop={e=>tDr(e,proj.id,ti)}
                       onDragEnd={()=>{setDTask(null);setDoTsk(null);}}
-                      style={{display:'flex',borderBottom:'1px solid #2e2e3340',background:isSel?proj.color+'18':ti%2===0?'#18181b':'#1c1c1f',opacity:iD?.4:1,outline:iO?'2px solid '+proj.color+'99':isSel?'1px solid '+proj.color+'55':'none',outlineOffset:'-1px'}}
-                      onMouseEnter={e=>{if(!dTask&&!isSel)e.currentTarget.style.background='#2a2a2f';}}
-                      onMouseLeave={e=>e.currentTarget.style.background=isSel?proj.color+'18':ti%2===0?'#18181b':'#1c1c1f'}>
+                      style={{display:'flex',borderBottom:'1px solid var(--border)40',background:isSel?proj.color+'18':ti%2===0?'var(--surface)':'var(--surface)',opacity:iD?.4:1,outline:iO?'2px solid '+proj.color+'99':isSel?'1px solid '+proj.color+'55':'none',outlineOffset:'-1px'}}
+                      onMouseEnter={e=>{if(!dTask&&!isSel)e.currentTarget.style.background='var(--surface-hover)';}}
+                      onMouseLeave={e=>e.currentTarget.style.background=isSel?proj.color+'18':ti%2===0?'var(--surface)':'var(--surface)'}>
                       <div style={{width:lw,minWidth:lw,display:'flex',alignItems:'center',gap:5,padding:'0 8px 0 16px',cursor:'pointer'}}
                         onClick={e=>{ if(e.shiftKey){toggleSel(e,proj.id,task.id);}else{oET(proj.id,task);} }}>
-                        <span style={{cursor:'grab',color:'#6e6e73',fontSize:12,flexShrink:0,userSelect:'none'}}>⠿</span>
+                        <span style={{cursor:'grab',color:'var(--text-3)',fontSize:12,flexShrink:0,userSelect:'none'}}>⠿</span>
                         <div style={{width:7,height:7,borderRadius:'50%',background:proj.color,flexShrink:0,opacity:.7}}/>
-                        <span style={{fontSize:12,color:isSel?'#ededee':'#a1a1a6',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.name}</span>
-                        <button onClick={e=>{e.stopPropagation();dT(proj.id,task.id);}} style={{background:'none',border:'none',color:'#6e6e73',cursor:'pointer',fontSize:13,padding:'2px 5px',flexShrink:0}}>×</button>
+                        <span style={{fontSize:12,color:isSel?'var(--text)':'var(--text-2)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{task.name}</span>
+                        <button onClick={e=>{e.stopPropagation();dT(proj.id,task.id);}} style={{background:'none',border:'none',color:'var(--text-3)',cursor:'pointer',fontSize:13,padding:'2px 5px',flexShrink:0}}>×</button>
                       </div>
                       <div style={{position:'relative',flex:1,height:32}} onClick={e=>{if(e.shiftKey)toggleSel(e,proj.id,task.id);else if(e.target===e.currentTarget)setSelected(new Set());}}>
 
-                        {tOff>=0&&tOff<vDays&&<div style={{position:'absolute',left:tOff*cw+cw/2,top:0,bottom:0,width:1.5,background:'#d4a05c',opacity:.25,zIndex:2}}/>}
+                        {tOff>=0&&tOff<vDays&&<div style={{position:'absolute',left:tOff*cw+cw/2,top:0,bottom:0,width:1.5,background:'var(--accent)',opacity:.25,zIndex:2}}/>}
                         {dates.map((d,i)=>(d.getDay()===0||d.getDay()===6)&&<div key={i} style={{position:'absolute',left:i*cw,top:0,bottom:0,width:cw,background:'rgba(255,255,255,0.03)'}}/>)}
                         {vis&&(
                           <div style={{position:'absolute',left:bL,top:3,height:26,display:'flex',alignItems:'center'}}>
@@ -1064,43 +1064,43 @@ function App(){
                     </div>
                   );
                 })}
-                {!proj.collapsed&&proj.tasks.length===0&&<div style={{display:'flex'}}><div style={{width:lw,minWidth:lw}}/><div style={{flex:1,padding:'10px 0',textAlign:'center',fontSize:11,color:'#6e6e73'}}>點右方 ＋ 新增任務</div></div>}
+                {!proj.collapsed&&proj.tasks.length===0&&<div style={{display:'flex'}}><div style={{width:lw,minWidth:lw}}/><div style={{flex:1,padding:'10px 0',textAlign:'center',fontSize:11,color:'var(--text-3)'}}>點右方 ＋ 新增任務</div></div>}
               </div>
             ))}
             {projs.length===0&&(
               <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'48px 0',gap:12}}>
-                <div style={{fontSize:13,color:'#6e6e73'}}>還沒有專案</div>
-                <div style={{fontSize:11,color:'#2e2e33'}}>點「＋ 新增專案」，或點「匯入 JSON」載入備份</div>
+                <div style={{fontSize:13,color:'var(--text-3)'}}>還沒有專案</div>
+                <div style={{fontSize:11,color:'var(--border)'}}>點「＋ 新增專案」，或點「匯入 JSON」載入備份</div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      <div style={{marginTop:10,display:'flex',gap:14,fontSize:10,color:'#6e6e73'}}>
+      <div style={{marginTop:10,display:'flex',gap:14,fontSize:10,color:'var(--text-3)'}}>
         <span>▼/▶ 展開收合</span><span>✎ 編輯</span><span>⠿ 拖曳排序</span><span>右鍵複製專案</span><span>Shift+點 多選任務</span><span>拖曳 Bar 移動日期</span>
       </div>
 
       {ctxMenu&&(
         <>
           <div style={{position:'fixed',inset:0,zIndex:199}} onClick={()=>setCtxMenu(null)}/>
-          <div style={{position:'fixed',left:ctxMenu.x,top:ctxMenu.y,zIndex:200,background:'#232327',border:'1px solid #2e2e33',borderRadius:10,padding:6,boxShadow:'0 8px 32px #000a',minWidth:160}}>
+          <div style={{position:'fixed',left:ctxMenu.x,top:ctxMenu.y,zIndex:200,background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:10,padding:6,boxShadow:'0 8px 32px #000a',minWidth:160}}>
             <div onClick={()=>dupProj(ctxMenu.projId)}
-              style={{padding:'8px 14px',fontSize:13,color:'#ededee',cursor:'pointer',borderRadius:6,display:'flex',alignItems:'center',gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background='#2e2e33'}
+              style={{padding:'8px 14px',fontSize:13,color:'var(--text)',cursor:'pointer',borderRadius:6,display:'flex',alignItems:'center',gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--border)'}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               ⧉ 複製此專案
             </div>
             <div onClick={()=>{const p=projs.find(x=>x.id===ctxMenu.projId);if(p){oEP(p);}setCtxMenu(null);}}
-              style={{padding:'8px 14px',fontSize:13,color:'#ededee',cursor:'pointer',borderRadius:6,display:'flex',alignItems:'center',gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background='#2e2e33'}
+              style={{padding:'8px 14px',fontSize:13,color:'var(--text)',cursor:'pointer',borderRadius:6,display:'flex',alignItems:'center',gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--border)'}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               ✎ 編輯專案
             </div>
-            <div style={{height:1,background:'#2e2e33',margin:'4px 0'}}/>
+            <div style={{height:1,background:'var(--border)',margin:'4px 0'}}/>
             <div onClick={()=>{dP(ctxMenu.projId);}}
-              style={{padding:'8px 14px',fontSize:13,color:'#c87f7f',cursor:'pointer',borderRadius:6,display:'flex',alignItems:'center',gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background='#2e2e33'}
+              style={{padding:'8px 14px',fontSize:13,color:'var(--danger)',cursor:'pointer',borderRadius:6,display:'flex',alignItems:'center',gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--border)'}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               × 刪除專案
             </div>
@@ -1110,8 +1110,8 @@ function App(){
 
       {modal&&(
         <div style={{position:'fixed',inset:0,background:'#000b',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100}} onClick={()=>setModal(null)}>
-          <div style={{background:'#232327',border:'1px solid #2e2e33',borderRadius:16,padding:28,width:360,boxShadow:'0 24px 60px #000a'}} onClick={e=>e.stopPropagation()}>
-            <h2 style={{margin:'0 0 16px',fontSize:15,color:'#ededee'}}>
+          <div style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:16,padding:28,width:360,boxShadow:'0 24px 60px #000a'}} onClick={e=>e.stopPropagation()}>
+            <h2 style={{margin:'0 0 16px',fontSize:15,color:'var(--text)'}}>
               {modal.type==='proj'?(modal.projId?'編輯專案':'新增專案'):(modal.taskId?'編輯任務':'新增任務')}
             </h2>
             <label style={lbl}>名稱</label>
@@ -1119,12 +1119,12 @@ function App(){
               <div style={{marginBottom:14}}>
                 {tags.length>0&&(
                   <div style={{marginBottom:8}}>
-                    <div style={{fontSize:10,color:'#6e6e73',marginBottom:6,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>常用項目</div>
+                    <div style={{fontSize:10,color:'var(--text-3)',marginBottom:6,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>常用項目</div>
                     <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                       {tags.filter(t=>!form.name||t.toLowerCase().includes(form.name.toLowerCase())).map(t=>(
-                        <div key={t} style={{display:'flex',alignItems:'center',borderRadius:20,overflow:'hidden',border:'1px solid #2e2e33'}}>
-                          <div onClick={()=>setForm(f=>({...f,name:t}))} style={{padding:'4px 10px',fontSize:12,cursor:'pointer',color:form.name===t?'#fff':'#a1a1a6',background:form.name===t?'#d4a05c':'transparent'}}>{t}</div>
-                          <div onClick={()=>rmT(t)} style={{padding:'4px 7px',fontSize:11,color:'#6e6e73',cursor:'pointer'}}>×</div>
+                        <div key={t} style={{display:'flex',alignItems:'center',borderRadius:20,overflow:'hidden',border:'1px solid var(--border)'}}>
+                          <div onClick={()=>setForm(f=>({...f,name:t}))} style={{padding:'4px 10px',fontSize:12,cursor:'pointer',color:form.name===t?'#fff':'var(--text-2)',background:form.name===t?'var(--accent)':'transparent'}}>{t}</div>
+                          <div onClick={()=>rmT(t)} style={{padding:'4px 7px',fontSize:11,color:'var(--text-3)',cursor:'pointer'}}>×</div>
                         </div>
                       ))}
                     </div>
@@ -1147,12 +1147,12 @@ function App(){
                 <div style={{flex:1}}><label style={lbl}>結束</label><input type='date' style={inp} value={form.end||''} onChange={e=>setForm(f=>({...f,end:e.target.value}))}/></div>
               </div>
               <label style={lbl}>完成進度：{form.progress||0}%</label>
-              <input type='range' min={0} max={100} value={form.progress||0} onChange={e=>setForm(f=>({...f,progress:Number(e.target.value)}))} style={{width:'100%',marginBottom:16,accentColor:'#d4a05c'}}/></>
+              <input type='range' min={0} max={100} value={form.progress||0} onChange={e=>setForm(f=>({...f,progress:Number(e.target.value)}))} style={{width:'100%',marginBottom:16,accentColor:'var(--accent)'}}/></>
             )}
             <div style={{display:'flex',gap:8}}>
-              <button onClick={sv} style={B('#d4a05c','#fff',true)}>{modal.projId||modal.taskId?'儲存':'新增'}</button>
-              <button onClick={()=>setModal(null)} style={B('#2e2e33')}>取消</button>
-              {(modal.projId||modal.taskId)&&<button onClick={()=>modal.type==='proj'?dP(modal.projId):dT(modal.projId,modal.taskId)} style={{...B('#4a2828','#c87f7f'),marginLeft:'auto'}}>刪除</button>}
+              <button onClick={sv} style={B('var(--accent)','#fff',true)}>{modal.projId||modal.taskId?'儲存':'新增'}</button>
+              <button onClick={()=>setModal(null)} style={B('var(--border)')}>取消</button>
+              {(modal.projId||modal.taskId)&&<button onClick={()=>modal.type==='proj'?dP(modal.projId):dT(modal.projId,modal.taskId)} style={{...B('var(--danger-bg)','var(--danger)'),marginLeft:'auto'}}>刪除</button>}
             </div>
           </div>
         </div>
