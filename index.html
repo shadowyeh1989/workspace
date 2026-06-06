@@ -13,11 +13,25 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="manifest" href="manifest.json">
 <title>Shadow's Workspace</title>
+<script>
+  // Apply saved theme before page renders to prevent flash (shares key with ledger.html)
+  (function() {
+    try {
+      var saved = localStorage.getItem('shadow_ledger_theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+        return;
+      }
+    } catch (e) {}
+    var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    document.documentElement.setAttribute('data-theme', prefersLight ? 'light' : 'dark');
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
+  :root, [data-theme="dark"] {
     --bg: #0e0e10;
     --surface: #18181b;
     --surface-2: #232327;
@@ -28,9 +42,24 @@
     --text-3: #6e6e73;
     --accent: #d4a05c;
     --accent-soft: #6b5234;
+    --shadow-card: 0 12px 32px rgba(0,0,0,0.4);
     --serif: 'Iowan Old Style', 'Charter', 'Source Serif Pro', Georgia, serif;
     --sans: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
     --mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  [data-theme="light"] {
+    --bg: #faf8f3;
+    --surface: #ffffff;
+    --surface-2: #f1ede4;
+    --surface-hover: #ebe6da;
+    --border: #d8d2c4;
+    --text: #2a2620;
+    --text-2: #5e5849;
+    --text-3: #8a8270;
+    --accent: #a87434;
+    --accent-soft: #ecdcc4;
+    --shadow-card: 0 8px 24px rgba(80,60,30,0.12);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,6 +71,7 @@
     display: flex;
     flex-direction: column;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   .page {
@@ -109,7 +139,7 @@
   .tool-card:hover {
     border-color: var(--accent);
     transform: translateY(-2px);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    box-shadow: var(--shadow-card);
   }
   .tool-card.disabled {
     cursor: not-allowed;
@@ -179,6 +209,38 @@
     font-size: 10px;
   }
 
+  /* Theme toggle (top-right corner) */
+  .theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 100;
+  }
+  .theme-toggle:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .theme-toggle svg {
+    width: 18px;
+    height: 18px;
+  }
+  /* Show moon in light mode, sun in dark mode */
+  .theme-toggle .icon-moon { display: none; }
+  .theme-toggle .icon-sun { display: block; }
+  [data-theme="light"] .theme-toggle .icon-moon { display: block; }
+  [data-theme="light"] .theme-toggle .icon-sun { display: none; }
+
   @media (max-width: 640px) {
     .page { padding: 40px 18px 32px; }
     .brand { margin-bottom: 48px; }
@@ -196,6 +258,11 @@
 </style>
 </head>
 <body>
+<button class="theme-toggle" id="themeToggle" title="切換主題" aria-label="切換主題">
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+</button>
+
 <div class="page">
   <div class="brand">
     <h1>Shadow's <em>Workspace</em></h1>
@@ -232,5 +299,21 @@
   <br>
   <span class="mono" id="version">v1.0</span>
 </footer>
+<script>
+  // Theme toggle (uses same localStorage key as ledger.html, so they sync)
+  (function() {
+    var btn = document.getElementById('themeToggle');
+    var root = document.documentElement;
+    btn.addEventListener('click', function() {
+      var current = root.getAttribute('data-theme') || 'dark';
+      var next = current === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('shadow_ledger_theme', next); } catch (e) {}
+      // Update meta theme-color so iOS status bar matches
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', next === 'light' ? '#faf8f3' : '#0e0e10');
+    });
+  })();
+</script>
 </body>
 </html>

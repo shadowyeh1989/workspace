@@ -139,6 +139,30 @@
     gap: 2px;
   }
 
+  .brand-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-decoration: none;
+    margin-bottom: 6px;
+    width: fit-content;
+    transition: color 0.15s;
+    cursor: pointer;
+  }
+  .brand-back:hover {
+    color: var(--accent);
+  }
+  .brand-back .arrow {
+    transition: transform 0.15s;
+  }
+  .brand-back:hover .arrow {
+    transform: translateX(-2px);
+  }
+
   .brand-title {
     font-family: var(--serif);
     font-size: 24px;
@@ -2315,6 +2339,9 @@
 <header class="app-header">
   <div class="header-top">
     <div class="brand">
+      <a href="index.html" class="brand-back">
+        <span class="arrow">←</span><span>Workspace</span>
+      </a>
       <h1 class="brand-title">客戶接案<em>管理表</em></h1>
       <div class="brand-sub">CLIENT · PROJECT · LEDGER</div>
     </div>
