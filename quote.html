@@ -661,6 +661,90 @@
   .auth-offline { background: var(--surface-2); color: var(--text-3); padding: 8px 12px; border-radius: 6px; font-size: 11px; margin-top: 12px; text-align: center; border: 1px solid var(--border); cursor: pointer; }
   .auth-back { font-size: 10px; color: var(--text-3); letter-spacing: 0.18em; text-transform: uppercase; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 14px; }
 
+  /* Backup badge in header */
+  .backup-badge-wrap { position: relative; display: inline-block; }
+  .backup-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: var(--sans);
+  }
+  .backup-badge:hover { background: var(--surface-hover); }
+  .backup-badge .bdot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); flex-shrink: 0; }
+  .backup-badge.warn { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .backup-badge.warn .bdot { background: var(--accent); }
+  .backup-badge.danger { color: var(--danger); border-color: var(--danger); background: var(--danger-bg); }
+  .backup-badge.danger .bdot { background: var(--danger); }
+  .backup-badge.auto { color: var(--success); border-color: var(--success); }
+  .backup-badge.auto .bdot { background: var(--success); animation: pulseDot 1.8s infinite; }
+
+  .backup-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+    min-width: 280px;
+    box-shadow: var(--shadow);
+    z-index: 300;
+    display: none;
+  }
+  .backup-menu.show { display: block; }
+  .backup-menu-status {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .backup-menu-status b { color: var(--text); font-family: var(--mono); font-weight: 500; }
+  .backup-menu-item {
+    padding: 9px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-family: var(--sans);
+  }
+  .backup-menu-item:hover { background: var(--surface-hover); }
+  .backup-menu-item.accent { color: var(--accent); }
+  .backup-menu-item.accent:hover { background: var(--accent-soft); }
+  .backup-menu-item.danger { color: var(--danger); }
+  .backup-menu-item.danger:hover { background: var(--danger-bg); }
+  .backup-menu-note {
+    padding: 6px 12px 8px;
+    font-size: 11px;
+    color: var(--text-3);
+    line-height: 1.5;
+  }
+  .backup-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  .backup-menu-running {
+    padding: 8px 12px;
+    color: var(--success);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   /* User pill */
   .user-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 11.5px; color: var(--text-2); cursor: pointer; position: relative; }
   .user-pill:hover { background: var(--surface-hover); }
@@ -1006,6 +1090,10 @@
       </div>
       <div id="userMenu" class="user-menu"></div>
     </div>
+    <div class="backup-badge-wrap">
+      <button class="backup-badge" id="backupBadge"><span class="bdot"></span><span id="backupBadgeText">備份</span></button>
+      <div class="backup-menu" id="backupMenu"></div>
+    </div>
     <button class="icon-btn" id="themeToggle" title="切換主題">
       <svg id="iconSun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
       <svg id="iconMoon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -1216,6 +1304,191 @@ function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { showToast('儲存失敗:' + e.message); }
   scheduleCloudSync();
+  scheduleAutoBackup();
+}
+
+/* ============ AUTO-BACKUP (FileSystem Access API) ============ */
+const AUTO_BACKUP_FILE = '報價參考表_自動備份.json';
+const AUTO_BACKUP_META_KEY = 'shadow_quote_backup_meta';
+const FS_SUPPORTED = (typeof window.showDirectoryPicker === 'function');
+
+let dirHandle = null;
+let autoBackupOn = false;
+let autoBackupTimer = null;
+let autoBackupInFlight = false;
+
+function getBackupMeta() {
+  try {
+    const raw = localStorage.getItem(AUTO_BACKUP_META_KEY);
+    return raw ? JSON.parse(raw) : { lastBackupAt: null };
+  } catch (e) { return { lastBackupAt: null }; }
+}
+function setBackupMeta(updates) {
+  const m = getBackupMeta();
+  Object.assign(m, updates);
+  try { localStorage.setItem(AUTO_BACKUP_META_KEY, JSON.stringify(m)); } catch (e) {}
+  return m;
+}
+
+function relTime(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '剛剛';
+  if (mins < 60) return mins + ' 分鐘前';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + ' 小時前';
+  const days = Math.floor(hrs / 24);
+  return days + ' 天前';
+}
+
+function updateBackupBadge() {
+  const badge = document.getElementById('backupBadge');
+  const text = document.getElementById('backupBadgeText');
+  if (!badge || !text) return;
+  badge.classList.remove('warn', 'danger', 'auto');
+  const last = getBackupMeta().lastBackupAt;
+  if (autoBackupOn) {
+    badge.classList.add('auto');
+    text.textContent = last ? relTime(last) + '備份' : '自動備份中';
+  } else if (!last) {
+    badge.classList.add('warn');
+    text.textContent = '尚未備份過';
+  } else {
+    const days = (Date.now() - last) / 86400000;
+    if (days >= 14) { badge.classList.add('danger'); text.textContent = Math.floor(days) + ' 天未備份'; }
+    else if (days >= 7) { badge.classList.add('warn'); text.textContent = Math.floor(days) + ' 天未備份'; }
+    else { text.textContent = relTime(last) + '備份'; }
+  }
+}
+
+function markBackup() {
+  setBackupMeta({ lastBackupAt: Date.now() });
+  updateBackupBadge();
+  renderBackupMenu();
+}
+
+function manualExport() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `報價參考表_備份_${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  markBackup();
+  document.getElementById('backupMenu').classList.remove('show');
+  showToast('已下載備份');
+}
+
+async function enableAutoBackup() {
+  if (!FS_SUPPORTED) {
+    showToast('此瀏覽器不支援自動備份,請改用 Chrome / Edge');
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'documents' });
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      const req = await handle.requestPermission({ mode: 'readwrite' });
+      if (req !== 'granted') { showToast('未取得資料夾寫入權限'); return; }
+    }
+    dirHandle = handle;
+    autoBackupOn = true;
+    showToast(`已啟用自動備份 · ${handle.name}`);
+    updateBackupBadge();
+    renderBackupMenu();
+    writeAutoBackup();
+  } catch (err) {
+    if (err.name !== 'AbortError') showToast('啟用失敗:' + err.message);
+  }
+}
+
+function disableAutoBackup() {
+  dirHandle = null;
+  autoBackupOn = false;
+  if (autoBackupTimer) { clearTimeout(autoBackupTimer); autoBackupTimer = null; }
+  showToast('已停用自動備份');
+  updateBackupBadge();
+  renderBackupMenu();
+}
+
+function scheduleAutoBackup() {
+  if (!autoBackupOn || !dirHandle) return;
+  if (autoBackupTimer) clearTimeout(autoBackupTimer);
+  autoBackupTimer = setTimeout(writeAutoBackup, 8000);
+}
+
+async function writeAutoBackup() {
+  if (!dirHandle || autoBackupInFlight) return;
+  autoBackupInFlight = true;
+  try {
+    const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      const req = await dirHandle.requestPermission({ mode: 'readwrite' });
+      if (req !== 'granted') {
+        dirHandle = null;
+        autoBackupOn = false;
+        showToast('⚠️ 需要資料夾寫入權限,自動備份已暫停');
+        updateBackupBadge();
+        renderBackupMenu();
+        return;
+      }
+    }
+    const fh = await dirHandle.getFileHandle(AUTO_BACKUP_FILE, { create: true });
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify(state, null, 2));
+    await w.close();
+    markBackup();
+  } catch (err) {
+    console.error('Auto backup failed', err);
+    showToast('自動備份失敗:' + err.message);
+  } finally {
+    autoBackupInFlight = false;
+  }
+}
+
+function toggleBackupMenu(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('backupMenu');
+  const willShow = !m.classList.contains('show');
+  document.querySelectorAll('.backup-menu.show, .user-menu.show').forEach(el => el.classList.remove('show'));
+  if (willShow) { m.classList.add('show'); renderBackupMenu(); }
+}
+
+function renderBackupMenu() {
+  const m = document.getElementById('backupMenu');
+  if (!m) return;
+  const last = getBackupMeta().lastBackupAt;
+  const statusTxt = last
+    ? `上次備份:<b>${new Date(last).toLocaleString('zh-Hant', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</b>`
+    : `<b>尚未做過備份</b>`;
+  let autoSection = '';
+  if (!FS_SUPPORTED) {
+    autoSection = `<div class="backup-menu-note">此瀏覽器不支援自動備份,請改用 Chrome / Edge,或定期點上面的「立即匯出」。</div>`;
+  } else if (autoBackupOn) {
+    const folder = (dirHandle && dirHandle.name) ? escapeHtml(dirHandle.name) : '已選資料夾';
+    autoSection = `
+      <div class="backup-menu-running">
+        <span class="bdot" style="width:8px;height:8px;border-radius:50%;background:currentColor"></span>
+        自動備份運作中
+      </div>
+      <div class="backup-menu-note">📁 ${folder} · 資料變動 8 秒後自動寫入</div>
+      <button class="backup-menu-item danger" onclick="disableAutoBackup()">停用自動備份</button>
+    `;
+  } else {
+    autoSection = `
+      <button class="backup-menu-item accent" onclick="enableAutoBackup()">📁 啟用自動備份(選資料夾)</button>
+      <div class="backup-menu-note">選一個雲端同步資料夾(iCloud / Dropbox / Google Drive),資料變動會自動寫入。</div>
+    `;
+  }
+  m.innerHTML = `
+    <div class="backup-menu-status">${statusTxt}</div>
+    <button class="backup-menu-item" onclick="manualExport()">⬇︎ 立即匯出(下載含日期的 JSON)</button>
+    <div class="backup-menu-divider"></div>
+    ${autoSection}
+  `;
 }
 function uid() {
   return 'i_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -2034,6 +2307,7 @@ function bootstrapAppWithLocalData() {
   state = loadState();
   renderAll();
   updateThemeIcon();
+  updateBackupBadge();
   if (currentUser) {
     document.getElementById('userPillWrap').style.display = '';
     document.getElementById('userEmail').textContent = currentUser.email || '';
@@ -2078,6 +2352,14 @@ function wireEvents() {
   document.getElementById('composeBuildBtn').addEventListener('click', buildComposedQuote);
   document.getElementById('composeCloseBtn').addEventListener('click', () => document.getElementById('composeModal').classList.remove('show'));
   document.getElementById('composeCopyBtn').addEventListener('click', () => copyText(document.getElementById('composeOutput').textContent));
+
+  // Backup badge
+  document.getElementById('backupBadge').addEventListener('click', toggleBackupMenu);
+  // Close menu when clicking elsewhere
+  document.addEventListener('click', e => {
+    const wrap = document.querySelector('.backup-badge-wrap');
+    if (wrap && !wrap.contains(e.target)) document.getElementById('backupMenu').classList.remove('show');
+  });
 
   // Tip card
   document.getElementById('tipCopyBtn').addEventListener('click', copyTipChecklist);
@@ -2183,6 +2465,9 @@ function wireEvents() {
     finish();
   }
 })();
+
+// Refresh "X 天前" / "X 分鐘前" text every minute
+setInterval(updateBackupBadge, 60000);
 </script>
 </body>
 </html>
