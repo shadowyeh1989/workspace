@@ -799,9 +799,149 @@
 
   /* Mobile responsive */
   @media (max-width: 880px) {
-    .app-main { grid-template-columns: 1fr; }
+    .app-header { padding: 16px 16px 0; }
+    .brand-title { font-size: 20px; }
+    .app-main {
+      grid-template-columns: 1fr;
+      padding: 12px 16px 60px;
+      gap: 16px;
+    }
     .sidebar { order: 2; }
-    .col-equip, .col-notes, .col-tags { display: none; }
+    .content-actions { gap: 6px; }
+    .search-box { min-width: 0; flex: 1; }
+
+    /* Hide the desktop table on mobile, show card list instead */
+    .table-wrap { display: none; }
+
+    /* Mobile card list (shown only on mobile, hidden via #card-list-mobile) */
+    #cardListMobile { display: flex; flex-direction: column; gap: 10px; }
+
+    .q-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    .q-card.selected {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .q-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .q-card-title {
+      font-size: 15px;
+      color: var(--text);
+      font-weight: 500;
+      line-height: 1.4;
+      flex: 1;
+      word-break: break-word;
+    }
+    .q-card-price {
+      font-family: var(--mono);
+      font-feature-settings: "tnum";
+      color: var(--accent);
+      font-size: 15px;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .q-card-price.empty { color: var(--text-3); font-style: italic; font-size: 12px; }
+    .q-card-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      font-size: 12.5px;
+      line-height: 1.55;
+      padding: 4px 0;
+      color: var(--text-2);
+    }
+    .q-card-row .label {
+      color: var(--text-3);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      min-width: 44px;
+      padding-top: 2px;
+    }
+    .q-card-row .value {
+      flex: 1;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .q-card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .q-card-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-soft);
+    }
+    .q-card-actions button {
+      flex: 1;
+      padding: 8px 0;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-2);
+      font-size: 12px;
+      font-family: var(--sans);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.12s;
+    }
+    .q-card-actions button:active { transform: scale(0.97); }
+    .q-card-actions button.primary {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+    .q-card-actions button.danger:active { color: var(--danger); border-color: var(--danger); }
+    .q-card-checkbox {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 22px;
+      height: 22px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .q-card.compose-mode .q-card-title { padding-right: 32px; }
+
+    .empty-card {
+      padding: 50px 20px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 13px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .empty-card .emoji { font-size: 28px; display: block; margin-bottom: 8px; opacity: 0.5; }
+
+    /* Item form on mobile: single column */
+    .form-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Hide mobile card list on desktop */
+  @media (min-width: 881px) {
+    #cardListMobile { display: none; }
   }
 </style>
 </head>
@@ -940,6 +1080,9 @@
         <tbody id="tableBody"></tbody>
       </table>
     </div>
+
+    <!-- Mobile card list (replaces table on small screens) -->
+    <div id="cardListMobile"></div>
   </section>
 </main>
 
@@ -1416,9 +1559,13 @@ function toggleComposeItem(itemId) {
   if (composeSelected.has(itemId)) composeSelected.delete(itemId);
   else composeSelected.add(itemId);
   updateComposeBanner();
-  // Update only the row visual
-  const row = document.querySelector(`tr[data-item-id="${itemId}"]`);
-  if (row) row.classList.toggle('selected', composeSelected.has(itemId));
+  // Update visual for both desktop row and mobile card
+  const isSel = composeSelected.has(itemId);
+  document.querySelectorAll(`[data-item-id="${itemId}"]`).forEach(el => {
+    el.classList.toggle('selected', isSel);
+    const cb = el.querySelector('input[type=checkbox]');
+    if (cb) cb.checked = isSel;
+  });
 }
 function updateComposeBanner() {
   document.getElementById('composeCount').textContent = composeSelected.size;
@@ -1542,6 +1689,7 @@ function renderTable() {
   const thCheck = document.getElementById('thCheck');
   thCheck.style.display = composeMode ? '' : 'none';
 
+  // ----- Desktop table -----
   if (items.length === 0) {
     tbody.innerHTML = `
       <tr><td colspan="${composeMode ? 8 : 7}">
@@ -1550,36 +1698,103 @@ function renderTable() {
           ${searchQuery ? '沒有符合搜尋的項目' : activeTagFilter ? '此標籤下沒有項目' : '此分類還沒有項目,點右上「+ 新增項目」開始。'}
         </div>
       </td></tr>`;
+  } else {
+    tbody.innerHTML = items.map(it => {
+      const tagsHtml = (it.tags || []).map(t => `<span class="row-tag">${escapeHtml(t)}</span>`).join('');
+      const isSel = composeSelected.has(it.id);
+      return `
+        <tr data-item-id="${it.id}" class="${isSel ? 'selected' : ''}">
+          ${composeMode ? `<td class="col-check"><input type="checkbox" data-action="select" ${isSel ? 'checked' : ''} style="cursor:pointer;width:16px;height:16px;accent-color:var(--accent)"></td>` : ''}
+          <td class="col-name"><div class="cell-name">${escapeHtml(it.name)}</div></td>
+          <td class="col-duration"><div class="cell-duration">${escapeHtml(it.duration) || '—'}</div></td>
+          <td class="col-price"><div class="cell-price ${!it.price ? 'empty' : ''}">${it.price ? fmtPrice(it.price) : '—'}</div></td>
+          <td class="col-equip"><div class="cell-equip">${escapeHtml(it.equipment) || '—'}</div></td>
+          <td class="col-notes"><div class="cell-notes">${escapeHtml(it.notes) || '—'}</div></td>
+          <td class="col-tags"><div class="cell-tags">${tagsHtml}</div></td>
+          <td class="col-actions">
+            <div class="row-actions">
+              <button class="row-icon-btn" data-action="copy" title="複製整列">⎘</button>
+              <button class="row-icon-btn" data-action="edit" title="編輯">✎</button>
+              <button class="row-icon-btn" data-action="duplicate" title="複製一份">＋</button>
+              <button class="row-icon-btn danger" data-action="delete" title="刪除">✕</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.querySelectorAll('tr[data-item-id]').forEach(row => {
+      const itemId = row.dataset.itemId;
+      row.querySelectorAll('[data-action]').forEach(el => {
+        el.addEventListener('click', e => {
+          e.stopPropagation();
+          const action = el.dataset.action;
+          if (action === 'copy') copyItem(itemId);
+          else if (action === 'edit') showEditItemForm(itemId);
+          else if (action === 'duplicate') duplicateItem(itemId);
+          else if (action === 'delete') deleteItem(itemId);
+          else if (action === 'select') toggleComposeItem(itemId);
+        });
+      });
+      if (composeMode) {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', e => {
+          if (e.target.closest('[data-action]')) return;
+          toggleComposeItem(itemId);
+          const cb = row.querySelector('input[type=checkbox]');
+          if (cb) cb.checked = composeSelected.has(itemId);
+        });
+      }
+    });
+  }
+
+  // ----- Mobile card list -----
+  renderCards(items);
+}
+
+function renderCards(items) {
+  const wrap = document.getElementById('cardListMobile');
+  if (!wrap) return;
+
+  if (items.length === 0) {
+    wrap.innerHTML = `
+      <div class="empty-card">
+        <span class="emoji">📋</span>
+        ${searchQuery ? '沒有符合搜尋的項目' : activeTagFilter ? '此標籤下沒有項目' : '此分類還沒有項目,點「+ 新增項目」開始。'}
+      </div>`;
     return;
   }
 
-  tbody.innerHTML = items.map(it => {
-    const tagsHtml = (it.tags || []).map(t => `<span class="row-tag">${escapeHtml(t)}</span>`).join('');
+  wrap.innerHTML = items.map(it => {
     const isSel = composeSelected.has(it.id);
+    const tagsHtml = (it.tags || []).map(t => `<span class="row-tag">${escapeHtml(t)}</span>`).join('');
+    const priceHtml = it.price
+      ? `<div class="q-card-price">${fmtPrice(it.price)}</div>`
+      : `<div class="q-card-price empty">未報價</div>`;
     return `
-      <tr data-item-id="${it.id}" class="${isSel ? 'selected' : ''}">
-        ${composeMode ? `<td class="col-check"><input type="checkbox" data-action="select" ${isSel ? 'checked' : ''} style="cursor:pointer;width:16px;height:16px;accent-color:var(--accent)"></td>` : ''}
-        <td class="col-name"><div class="cell-name">${escapeHtml(it.name)}</div></td>
-        <td class="col-duration"><div class="cell-duration">${escapeHtml(it.duration) || '—'}</div></td>
-        <td class="col-price"><div class="cell-price ${!it.price ? 'empty' : ''}">${it.price ? fmtPrice(it.price) : '—'}</div></td>
-        <td class="col-equip"><div class="cell-equip">${escapeHtml(it.equipment) || '—'}</div></td>
-        <td class="col-notes"><div class="cell-notes">${escapeHtml(it.notes) || '—'}</div></td>
-        <td class="col-tags"><div class="cell-tags">${tagsHtml}</div></td>
-        <td class="col-actions">
-          <div class="row-actions">
-            <button class="row-icon-btn" data-action="copy" title="複製整列">⎘</button>
-            <button class="row-icon-btn" data-action="edit" title="編輯">✎</button>
-            <button class="row-icon-btn" data-action="duplicate" title="複製一份">＋</button>
-            <button class="row-icon-btn danger" data-action="delete" title="刪除">✕</button>
-          </div>
-        </td>
-      </tr>
+      <div class="q-card ${isSel ? 'selected' : ''} ${composeMode ? 'compose-mode' : ''}" data-item-id="${it.id}">
+        ${composeMode ? `<input type="checkbox" class="q-card-checkbox" data-action="select" ${isSel ? 'checked' : ''}>` : ''}
+        <div class="q-card-top">
+          <div class="q-card-title">${escapeHtml(it.name)}</div>
+          ${priceHtml}
+        </div>
+        ${it.duration ? `<div class="q-card-row"><span class="label">時長</span><span class="value">${escapeHtml(it.duration)}</span></div>` : ''}
+        ${it.equipment ? `<div class="q-card-row"><span class="label">器材</span><span class="value">${escapeHtml(it.equipment)}</span></div>` : ''}
+        ${it.notes ? `<div class="q-card-row"><span class="label">備註</span><span class="value">${escapeHtml(it.notes)}</span></div>` : ''}
+        ${tagsHtml ? `<div class="q-card-tags">${tagsHtml}</div>` : ''}
+        <div class="q-card-actions">
+          <button data-action="copy" class="primary">⎘ 複製</button>
+          <button data-action="edit">✎ 編輯</button>
+          <button data-action="duplicate">＋ 複製一份</button>
+          <button data-action="delete" class="danger">✕ 刪除</button>
+        </div>
+      </div>
     `;
   }).join('');
 
-  tbody.querySelectorAll('tr[data-item-id]').forEach(row => {
-    const itemId = row.dataset.itemId;
-    row.querySelectorAll('[data-action]').forEach(el => {
+  wrap.querySelectorAll('.q-card').forEach(card => {
+    const itemId = card.dataset.itemId;
+    card.querySelectorAll('[data-action]').forEach(el => {
       el.addEventListener('click', e => {
         e.stopPropagation();
         const action = el.dataset.action;
@@ -1591,13 +1806,12 @@ function renderTable() {
       });
     });
     if (composeMode) {
-      row.style.cursor = 'pointer';
-      row.addEventListener('click', e => {
-        // Don't toggle if the click was on an action button
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', e => {
         if (e.target.closest('[data-action]')) return;
+        if (e.target.classList.contains('q-card-checkbox')) return;
         toggleComposeItem(itemId);
-        // Sync checkbox
-        const cb = row.querySelector('input[type=checkbox]');
+        const cb = card.querySelector('.q-card-checkbox');
         if (cb) cb.checked = composeSelected.has(itemId);
       });
     }
