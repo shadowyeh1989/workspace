@@ -754,9 +754,58 @@ let sortKey = "date", sortDir = -1;
 let editingDriveId = null, pickedColor = COLORS[0];
 let selectedCompany = "";
 let addingClient = false;
-// auto-backup (in-memory; re-authorize each time the file is reopened)
-let dirHandle = null, autoBackupOn = false, autoBackupTimer = null;
+// auto-backup
+let dirHandle = null, pendingHandle = null, autoBackupOn = false, autoBackupTimer = null;
 const AUTO_FILE = "備份硬碟清單_自動備份.json";
+
+// IndexedDB persistence for FileSystemDirectoryHandle
+const IDB_NAME = 'shadow_workspace_handles';
+const IDB_STORE = 'handles';
+const IDB_KEY = 'drive_dir_handle';
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbGet(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) { console.warn('idbGet failed', e); return null; }
+}
+async function idbSet(key, value) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbSet failed', e); }
+}
+async function idbDel(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbDel failed', e); }
+}
 
 /* ---------- persistence ---------- */
 function load() {
@@ -1226,6 +1275,11 @@ function updateBackupBadge(){
     b.innerHTML = `<span class="bdot"></span>${last?relTime(last):"自動備份中"}`;
     return;
   }
+  if(pendingHandle){
+    b.classList.add("b-warn");
+    b.innerHTML = `<span class="bdot"></span>點我恢復備份`;
+    return;
+  }
   if(!last){ b.classList.add("b-warn"); b.innerHTML = `<span class="bdot"></span>尚未備份`; return; }
   const days = Math.floor((Date.now()-last)/86400000);
   let cls = "b-fresh", txt = days===0 ? "今日已備份" : `${days} 天前備份`;
@@ -1245,23 +1299,28 @@ function renderBackupMenu(){
   if(!m) return;
   const last = state.lastBackupAt;
   const statusTxt = last
-    ? `上次備份：<b>${new Date(last).toLocaleString("zh-Hant",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b>`
+    ? `上次備份:<b>${new Date(last).toLocaleString("zh-Hant",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b>`
     : `<b>尚未做過備份</b>`;
   let auto = "";
   if(!FS_SUPPORTED){
-    auto = `<div class="bm-note">這個瀏覽器不支援自動寫入硬碟。請改用 Chrome / Edge，或定期點上面的「立即備份」。</div>`;
+    auto = `<div class="bm-note">這個瀏覽器不支援自動寫入硬碟。請改用 Chrome / Edge,或定期點上面的「立即備份」。</div>`;
   } else if(autoBackupOn){
     const folder = (dirHandle && dirHandle.name) ? esc(dirHandle.name) : "已選資料夾";
     auto = `<div class="bm-ok"><span class="bdot" style="background:#3a7d44;width:8px;height:8px;border-radius:50%"></span>自動備份運作中</div>
       <div class="bm-note">📁 ${folder} · 每次資料變動 8 秒後自動寫入</div>
       <button class="bm-btn danger" onclick="disableAutoBackup()">停用自動備份</button>`;
+  } else if(pendingHandle){
+    const folder = esc(pendingHandle.name || "已選資料夾");
+    auto = `<button class="bm-btn" onclick="resumeAutoBackup()">▶ 恢復自動備份(${folder})</button>
+      <div class="bm-note">瀏覽器的資料夾權限暫時失效,點一下即可恢復,不用重新選資料夾。</div>
+      <button class="bm-btn danger" onclick="disableAutoBackup()">改用其他資料夾(重選)</button>`;
   } else {
-    auto = `<button class="bm-btn" onclick="enableAutoBackup()">📁 啟用自動備份（選資料夾）</button>
-      <div class="bm-note">選一個雲端同步資料夾（iCloud／Dropbox／Google Drive），之後資料一變動就自動寫入，不用再記得手動備份。</div>`;
+    auto = `<button class="bm-btn" onclick="enableAutoBackup()">📁 啟用自動備份(選資料夾)</button>
+      <div class="bm-note">選一個雲端同步資料夾(iCloud／Dropbox／Google Drive),之後資料一變動就自動寫入,不用再記得手動備份。</div>`;
   }
   m.innerHTML = `
     <div class="bm-status">${statusTxt}</div>
-    <button class="bm-btn" onclick="manualBackup()">⬇︎ 立即備份（下載含日期的 JSON 快照）</button>
+    <button class="bm-btn" onclick="manualBackup()">⬇︎ 立即備份(下載含日期的 JSON 快照)</button>
     <div class="bm-div"></div>
     ${auto}`;
 }
@@ -1280,8 +1339,17 @@ async function writeAutoBackup(){
   try {
     const perm = await dirHandle.queryPermission({ mode: "readwrite" });
     if(perm !== "granted"){
-      const req = await dirHandle.requestPermission({ mode: "readwrite" });
-      if(req !== "granted"){ toast("⚠️ 需要資料夾寫入權限，自動備份已暫停"); autoBackupOn=false; updateBackupBadge(); renderBackupMenu(); return; }
+      // Don't auto-prompt mid-write (that's the cause of the original bug — silent
+      // permission failures lead to "I have to reselect every time"). Move into
+      // pending state so the user can recover with one click via the badge.
+      pendingHandle = dirHandle;
+      dirHandle = null;
+      autoBackupOn = false;
+      clearTimeout(autoBackupTimer);
+      toast("⚠️ 資料夾權限暫時失效,點備份徽章可一鍵恢復");
+      updateBackupBadge();
+      renderBackupMenu();
+      return;
     }
     const fh = await dirHandle.getFileHandle(AUTO_FILE, { create: true });
     const w = await fh.createWritable();
@@ -1291,11 +1359,19 @@ async function writeAutoBackup(){
   } catch(err){ console.warn(err); toast("⚠️ 自動備份寫入失敗"); }
 }
 async function enableAutoBackup(){
-  if(!FS_SUPPORTED){ toast("⚠️ 此瀏覽器不支援，請用 Chrome/Edge"); return; }
+  if(!FS_SUPPORTED){ toast("⚠️ 此瀏覽器不支援,請用 Chrome/Edge"); return; }
   try {
-    dirHandle = await window.showDirectoryPicker({ mode: "readwrite", id: "backupLedger" });
+    const handle = await window.showDirectoryPicker({ mode: "readwrite", id: "backupLedger" });
+    const perm = await handle.queryPermission({ mode: "readwrite" });
+    if(perm !== "granted"){
+      const req = await handle.requestPermission({ mode: "readwrite" });
+      if(req !== "granted"){ toast("未取得資料夾寫入權限"); return; }
+    }
+    dirHandle = handle;
+    pendingHandle = null;
     autoBackupOn = true;
-    await writeAutoBackup();   // back up immediately
+    await idbSet(IDB_KEY, handle);  // persist across sessions
+    await writeAutoBackup();
     toast("✓ 自動備份已啟用");
   } catch(err){
     if(err.name !== "AbortError"){ console.warn(err); toast("⚠️ 啟用失敗"); }
@@ -1303,8 +1379,47 @@ async function enableAutoBackup(){
   }
   updateBackupBadge(); renderBackupMenu();
 }
-function disableAutoBackup(){
-  autoBackupOn = false; dirHandle = null; clearTimeout(autoBackupTimer);
+async function resumeAutoBackup(){
+  if(!pendingHandle) return;
+  try {
+    const req = await pendingHandle.requestPermission({ mode: "readwrite" });
+    if(req !== "granted"){ toast("未取得資料夾寫入權限"); return; }
+    dirHandle = pendingHandle;
+    pendingHandle = null;
+    autoBackupOn = true;
+    toast(`✓ 已恢復自動備份 · ${dirHandle.name}`);
+    updateBackupBadge();
+    renderBackupMenu();
+    writeAutoBackup();
+  } catch(err){ toast("恢復失敗:" + err.message); }
+}
+async function restoreBackupOnBoot(){
+  if(!FS_SUPPORTED) return;
+  const handle = await idbGet(IDB_KEY);
+  if(!handle) return;
+  try {
+    const perm = await handle.queryPermission({ mode: "readwrite" });
+    if(perm === "granted"){
+      dirHandle = handle;
+      autoBackupOn = true;
+      updateBackupBadge();
+    } else if(perm === "prompt"){
+      pendingHandle = handle;
+      updateBackupBadge();
+    } else {
+      await idbDel(IDB_KEY);
+    }
+  } catch(err){
+    console.warn("Restore backup failed", err);
+    await idbDel(IDB_KEY);
+  }
+}
+async function disableAutoBackup(){
+  autoBackupOn = false;
+  dirHandle = null;
+  pendingHandle = null;
+  clearTimeout(autoBackupTimer);
+  await idbDel(IDB_KEY);
   updateBackupBadge(); renderBackupMenu();
   toast("已停用自動備份");
 }
@@ -1561,6 +1676,7 @@ function bootstrapAppWithLocalData(){
   document.getElementById("f-date").value = todayStr();
   refreshAll();
   updateBackupBadge();
+  restoreBackupOnBoot();  // try to restore saved dir handle
   if(currentUser){
     document.getElementById('userPillWrap').style.display='';
     document.getElementById('userEmail').textContent=currentUser.email||'';

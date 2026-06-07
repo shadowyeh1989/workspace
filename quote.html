@@ -1312,7 +1312,59 @@ const AUTO_BACKUP_FILE = '報價參考表_自動備份.json';
 const AUTO_BACKUP_META_KEY = 'shadow_quote_backup_meta';
 const FS_SUPPORTED = (typeof window.showDirectoryPicker === 'function');
 
+// IndexedDB persistence for FileSystemDirectoryHandle.
+// localStorage can't store handles (only strings); IndexedDB can.
+const IDB_NAME = 'shadow_workspace_handles';
+const IDB_STORE = 'handles';
+const IDB_KEY = 'quote_dir_handle';
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbGet(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) { console.warn('idbGet failed', e); return null; }
+}
+async function idbSet(key, value) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbSet failed', e); }
+}
+async function idbDel(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbDel failed', e); }
+}
+
 let dirHandle = null;
+let pendingHandle = null;  // handle exists but permission needs re-grant
 let autoBackupOn = false;
 let autoBackupTimer = null;
 let autoBackupInFlight = false;
@@ -1351,6 +1403,10 @@ function updateBackupBadge() {
   if (autoBackupOn) {
     badge.classList.add('auto');
     text.textContent = last ? relTime(last) + '備份' : '自動備份中';
+  } else if (pendingHandle) {
+    // Permission lapsed but handle is recoverable
+    badge.classList.add('warn');
+    text.textContent = '點我恢復備份';
   } else if (!last) {
     badge.classList.add('warn');
     text.textContent = '尚未備份過';
@@ -1395,7 +1451,9 @@ async function enableAutoBackup() {
       if (req !== 'granted') { showToast('未取得資料夾寫入權限'); return; }
     }
     dirHandle = handle;
+    pendingHandle = null;
     autoBackupOn = true;
+    await idbSet(IDB_KEY, handle);  // persist for next session
     showToast(`已啟用自動備份 · ${handle.name}`);
     updateBackupBadge();
     renderBackupMenu();
@@ -1405,10 +1463,55 @@ async function enableAutoBackup() {
   }
 }
 
-function disableAutoBackup() {
+async function resumeAutoBackup() {
+  // Called when permission was 'prompt' on boot — user clicks the resume button
+  if (!pendingHandle) return;
+  try {
+    const req = await pendingHandle.requestPermission({ mode: 'readwrite' });
+    if (req !== 'granted') { showToast('未取得資料夾寫入權限'); return; }
+    dirHandle = pendingHandle;
+    pendingHandle = null;
+    autoBackupOn = true;
+    showToast(`已恢復自動備份 · ${dirHandle.name}`);
+    updateBackupBadge();
+    renderBackupMenu();
+    writeAutoBackup();
+  } catch (err) {
+    showToast('恢復失敗:' + err.message);
+  }
+}
+
+async function restoreBackupOnBoot() {
+  if (!FS_SUPPORTED) return;
+  const handle = await idbGet(IDB_KEY);
+  if (!handle) return;
+  try {
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      // Auto-restore silently — permission is still valid
+      dirHandle = handle;
+      autoBackupOn = true;
+      updateBackupBadge();
+    } else if (perm === 'prompt') {
+      // Handle still exists but permission expired — show resume button
+      pendingHandle = handle;
+      updateBackupBadge();
+    } else {
+      // denied → clear stored handle, user must re-pick
+      await idbDel(IDB_KEY);
+    }
+  } catch (err) {
+    console.warn('Restore backup failed', err);
+    await idbDel(IDB_KEY);
+  }
+}
+
+async function disableAutoBackup() {
   dirHandle = null;
+  pendingHandle = null;
   autoBackupOn = false;
   if (autoBackupTimer) { clearTimeout(autoBackupTimer); autoBackupTimer = null; }
+  await idbDel(IDB_KEY);
   showToast('已停用自動備份');
   updateBackupBadge();
   renderBackupMenu();
@@ -1426,15 +1529,15 @@ async function writeAutoBackup() {
   try {
     const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
     if (perm !== 'granted') {
-      const req = await dirHandle.requestPermission({ mode: 'readwrite' });
-      if (req !== 'granted') {
-        dirHandle = null;
-        autoBackupOn = false;
-        showToast('⚠️ 需要資料夾寫入權限,自動備份已暫停');
-        updateBackupBadge();
-        renderBackupMenu();
-        return;
-      }
+      // Permission lapsed — keep handle in pending state so user can resume with one click
+      pendingHandle = dirHandle;
+      dirHandle = null;
+      autoBackupOn = false;
+      if (autoBackupTimer) { clearTimeout(autoBackupTimer); autoBackupTimer = null; }
+      showToast('⚠️ 資料夾權限暫時失效,點備份徽章可一鍵恢復');
+      updateBackupBadge();
+      renderBackupMenu();
+      return;
     }
     const fh = await dirHandle.getFileHandle(AUTO_BACKUP_FILE, { create: true });
     const w = await fh.createWritable();
@@ -1476,6 +1579,13 @@ function renderBackupMenu() {
       </div>
       <div class="backup-menu-note">📁 ${folder} · 資料變動 8 秒後自動寫入</div>
       <button class="backup-menu-item danger" onclick="disableAutoBackup()">停用自動備份</button>
+    `;
+  } else if (pendingHandle) {
+    const folder = escapeHtml(pendingHandle.name || '已選資料夾');
+    autoSection = `
+      <button class="backup-menu-item accent" onclick="resumeAutoBackup()">▶ 恢復自動備份(${folder})</button>
+      <div class="backup-menu-note">瀏覽器的資料夾權限暫時失效,點一下即可恢復,不用重新選資料夾。</div>
+      <button class="backup-menu-item danger" onclick="disableAutoBackup()">改用其他資料夾(重選)</button>
     `;
   } else {
     autoSection = `
@@ -2308,6 +2418,7 @@ function bootstrapAppWithLocalData() {
   renderAll();
   updateThemeIcon();
   updateBackupBadge();
+  restoreBackupOnBoot(); // try to restore saved dir handle
   if (currentUser) {
     document.getElementById('userPillWrap').style.display = '';
     document.getElementById('userEmail').textContent = currentUser.email || '';
