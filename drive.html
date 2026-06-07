@@ -1272,7 +1272,15 @@ function updateBackupBadge(){
   const last = state.lastBackupAt;
   if(autoBackupOn){
     b.classList.add("b-auto");
-    b.innerHTML = `<span class="bdot"></span>${last?relTime(last):"自動備份中"}`;
+    // In auto mode, badge text reflects state of the auto-write loop, not the last write.
+    // If we've written recently (< 30 min), show "剛剛備份" feedback so the user knows
+    // a write happened. Otherwise show the steady "自動備份中" state — long gaps with
+    // no writes just mean no data changed.
+    if(last && (Date.now() - last) < 30 * 60 * 1000){
+      b.innerHTML = `<span class="bdot"></span>${relTime(last)}`;
+    } else {
+      b.innerHTML = `<span class="bdot"></span>自動備份中`;
+    }
     return;
   }
   if(pendingHandle){
@@ -1403,6 +1411,9 @@ async function restoreBackupOnBoot(){
       dirHandle = handle;
       autoBackupOn = true;
       updateBackupBadge();
+      // Write once on boot so timestamp stays fresh — without this the badge would
+      // show "N days ago" even though auto-backup is healthy (just no data changes).
+      setTimeout(() => writeAutoBackup(), 1500);
     } else if(perm === "prompt"){
       pendingHandle = handle;
       updateBackupBadge();

@@ -1402,9 +1402,14 @@ function updateBackupBadge() {
   const last = getBackupMeta().lastBackupAt;
   if (autoBackupOn) {
     badge.classList.add('auto');
-    text.textContent = last ? relTime(last) + '備份' : '自動備份中';
+    // In auto mode, show "剛剛備份" briefly after a write; otherwise show steady
+    // "自動備份中" — gaps just mean nothing changed, not that backup is broken.
+    if (last && (Date.now() - last) < 30 * 60 * 1000) {
+      text.textContent = relTime(last) + '備份';
+    } else {
+      text.textContent = '自動備份中';
+    }
   } else if (pendingHandle) {
-    // Permission lapsed but handle is recoverable
     badge.classList.add('warn');
     text.textContent = '點我恢復備份';
   } else if (!last) {
@@ -1492,6 +1497,9 @@ async function restoreBackupOnBoot() {
       dirHandle = handle;
       autoBackupOn = true;
       updateBackupBadge();
+      // Write once on boot so timestamp stays fresh — without this the badge would
+      // show "N days ago" even though auto-backup is healthy (just no data changes).
+      setTimeout(() => writeAutoBackup(), 1500);
     } else if (perm === 'prompt') {
       // Handle still exists but permission expired — show resume button
       pendingHandle = handle;
