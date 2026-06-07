@@ -495,6 +495,73 @@
   .col-hours { width: 200px; }
   .col-withholding { width: 100px; }
   .col-notes { width: 220px; }
+  .col-hourly-balance { width: 110px; }
+  .hourly-balance-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 6px 4px;
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    font-size: 13.5px;
+  }
+  .hb-value {
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: 500;
+    cursor: help;
+  }
+  .hb-positive { color: #6a9c6a; background: rgba(106,156,106,0.1); }
+  [data-theme="light"] .hb-positive { color: #3a6e3a; background: rgba(74,122,74,0.12); }
+  .hb-negative { color: #c87f7f; background: rgba(200,127,127,0.1); }
+  [data-theme="light"] .hb-negative { color: #9a3838; background: rgba(160,72,72,0.12); }
+  .hb-zero { color: var(--text-3); }
+  .hb-empty { color: var(--text-3); font-style: italic; font-size: 12px; }
+
+  /* Hourly rate setting bar at top of monthly view */
+  .hourly-rate-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .hr-label {
+    color: var(--text-3);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .hr-rate-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .hr-rate-pill:hover { opacity: 0.85; }
+  .hr-hint {
+    color: var(--text-3);
+    font-size: 11px;
+    font-style: italic;
+  }
+  @media (max-width: 720px) {
+    .hr-hint { display: none; }
+  }
   .col-custom { min-width: 50px; }
   .col-add { width: 44px; text-align: center; padding: 0 !important; }
   .col-actions { width: 44px; text-align: center; }
@@ -2394,6 +2461,11 @@
 <main>
   <!-- Monthly View -->
   <section class="view-section active" data-view="monthly">
+    <div class="hourly-rate-bar">
+      <span class="hr-label">時薪結餘計算基準</span>
+      <span class="hr-rate-pill" id="hourlyRatePill" title="點擊修改時薪 (此年度)">NT$<span id="hourlyRateValue">600</span> / 小時</span>
+      <span class="hr-hint">表格右側「時薪結餘」欄 = 淨利 − 工時 × 時薪</span>
+    </div>
     <div class="month-tabs" id="monthTabs"></div>
     <div id="monthContent"></div>
   </section>
@@ -2676,6 +2748,7 @@ const TAX_STANDARDS = {
     salary: 227000,        // 薪資所得特別扣除額
     royalty: 180000,       // 9B 稿費 / 演講費 / 版稅 定額免稅
     profession9A: 0,       // 9A 無年度免稅 / 扣除額
+    hourlyRate: 600,       // 自訂時薪 (用於計算「時薪結餘 = 淨利 − 工時 × 時薪」)
     brackets: [
       { upTo: 610000,  rate: 0.05, qd: 0 },
       { upTo: 1380000, rate: 0.12, qd: 30500 },
@@ -2690,6 +2763,7 @@ const TAX_STANDARDS = {
     salary: 218000,
     royalty: 180000,
     profession9A: 0,
+    hourlyRate: 600,
     brackets: [
       { upTo: 590000,  rate: 0.05, qd: 0 },
       { upTo: 1330000, rate: 0.12, qd: 29500 },
@@ -2704,6 +2778,7 @@ const TAX_STANDARDS = {
     salary: 218000,
     royalty: 180000,
     profession9A: 0,
+    hourlyRate: 600,
     brackets: [
       { upTo: 590000,  rate: 0.05, qd: 0 },
       { upTo: 1330000, rate: 0.12, qd: 29500 },
@@ -2713,6 +2788,58 @@ const TAX_STANDARDS = {
     ]
   }
 };
+
+// User-overridable hourly rate per year. Stored in state.hourlyRates[year].
+// Falls back to TAX_STANDARDS[year].hourlyRate, then to 600.
+function getHourlyRate(year) {
+  const yr = String(year);
+  if (state && state.hourlyRates && state.hourlyRates[yr] != null) {
+    const v = Number(state.hourlyRates[yr]);
+    if (!isNaN(v) && v >= 0) return v;
+  }
+  if (TAX_STANDARDS[yr] && TAX_STANDARDS[yr].hourlyRate != null) return TAX_STANDARDS[yr].hourlyRate;
+  return 600;
+}
+
+function setHourlyRate(year, rate) {
+  if (!state.hourlyRates) state.hourlyRates = {};
+  const yr = String(year);
+  const v = Number(rate);
+  if (isNaN(v) || v < 0) return;
+  state.hourlyRates[yr] = v;
+}
+
+function updateHourlyRatePill() {
+  const el = document.getElementById('hourlyRateValue');
+  if (el) el.textContent = getHourlyRate(state.currentYear).toLocaleString('en-US');
+}
+
+function promptHourlyRateEdit() {
+  const yr = String(state.currentYear);
+  const current = getHourlyRate(yr);
+  const input = prompt(`設定 ${yr} 年度時薪 (NT$ / 小時)\n目前:${current}\n\n更改後此年度所有「時薪結餘」會自動重算。`, String(current));
+  if (input === null) return; // cancelled
+  const v = Number(input.replace(/,/g, '').trim());
+  if (isNaN(v) || v < 0) { showToast('請輸入大於等於 0 的數字'); return; }
+  setHourlyRate(yr, v);
+  saveState();
+  updateHourlyRatePill();
+  // Re-render the monthly view so all hourly balance cells update
+  if (typeof renderMonthly === 'function') renderMonthly();
+  showToast(`已更新 ${yr} 年度時薪為 NT$${v.toLocaleString('en-US')}`);
+}
+
+// 淨利 − 工時 × 時薪
+// Returns null if both fields are empty (so we can show a dash).
+function computeHourlyBalance(project, year) {
+  const hours = totalHours(project);
+  const netRaw = project.afterExpense;
+  const hasNet = !(netRaw === '' || netRaw == null || isNaN(Number(netRaw)));
+  if (!hasNet && hours === 0) return null;
+  const net = hasNet ? Number(netRaw) : 0;
+  const rate = getHourlyRate(year);
+  return net - hours * rate;
+}
 
 function getTaxStandard(year) {
   if (TAX_STANDARDS[year]) return TAX_STANDARDS[year];
@@ -3355,6 +3482,7 @@ function renderMonthTabs() {
 /* =============== MONTHLY VIEW =============== */
 function renderMonthly() {
   renderMonthTabs();
+  updateHourlyRatePill();
   const arr = getCurrentMonthArr();
   const container = document.getElementById('monthContent');
   container.innerHTML = '';
@@ -3386,7 +3514,8 @@ function renderMonthly() {
     { id: 'paymentStatus',  label: '付款狀態', cls: 'col-payment' },
     { id: 'hours',          label: '工時', cls: 'col-hours' },
     { id: 'withholding',    label: '扣繳類別', cls: 'col-withholding' },
-    { id: 'notes',          label: '備註', cls: 'col-notes' }
+    { id: 'notes',          label: '備註', cls: 'col-notes' },
+    { id: 'hourlyBalance',  label: `時薪結餘`, cls: 'col-num col-hourly-balance', style: 'text-align:right' }
   ];
   fixedHeaders.forEach(h => {
     const th = document.createElement('th');
@@ -3760,6 +3889,13 @@ function renderRow(p, idx) {
   const tdNotes = document.createElement('td');
   tdNotes.appendChild(textareaInput(p, 'notes', '備註…'));
   tr.appendChild(tdNotes);
+
+  // Hourly balance (淨利 − 工時 × 時薪) — read-only computed cell
+  const tdHb = document.createElement('td');
+  tdHb.appendChild(hourlyBalanceCell(p));
+  tdHb.className = 'col-num col-hourly-balance';
+  tdHb.style.textAlign = 'right';
+  tr.appendChild(tdHb);
 
   // Custom columns
   state.customColumns.forEach(col => {
@@ -4261,8 +4397,22 @@ function numInput(p, field) {
     saveState();
     // Update totals without full re-render
     updateFooterTotals();
+    // If this was income / afterExpense, the hourly balance for this row needs to refresh.
+    if (field === 'afterExpense' || field === 'income') {
+      refreshHourlyBalanceCell(p);
+    }
   };
   return inp;
+}
+
+function refreshHourlyBalanceCell(p) {
+  // Find the row by project id, then its hourly balance td, and rebuild it.
+  const row = document.querySelector(`tr[data-id="${p.id}"]`);
+  if (!row) return;
+  const td = row.querySelector('.col-hourly-balance');
+  if (!td) return;
+  td.innerHTML = '';
+  td.appendChild(hourlyBalanceCell(p));
 }
 
 function textareaInput(p, field, placeholder) {
@@ -4278,6 +4428,28 @@ function textareaInput(p, field, placeholder) {
   ta.oninput = () => { p[field] = ta.value; saveState(); autoresize(); };
   setTimeout(autoresize, 0);
   return ta;
+}
+
+/* =============== HOURLY BALANCE CELL (read-only computed) =============== */
+function hourlyBalanceCell(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'hourly-balance-cell';
+  const rate = getHourlyRate(state.currentYear);
+  const bal = computeHourlyBalance(p, state.currentYear);
+
+  if (bal == null) {
+    wrap.innerHTML = `<span class="hb-empty">—</span>`;
+    return wrap;
+  }
+
+  const hours = totalHours(p);
+  const net = Number(p.afterExpense) || 0;
+  const sign = bal > 0 ? '+' : (bal < 0 ? '−' : '');
+  const absStr = Math.abs(Math.round(bal)).toLocaleString('en-US');
+  const cls = bal > 0 ? 'hb-positive' : (bal < 0 ? 'hb-negative' : 'hb-zero');
+
+  wrap.innerHTML = `<span class="hb-value ${cls}" title="淨利 ${net.toLocaleString('en-US')} − 工時 ${fmtHours(hours)} × 時薪 ${rate} = ${bal > 0 ? '+' : ''}${Math.round(bal).toLocaleString('en-US')}">${sign}${absStr}</span>`;
+  return wrap;
 }
 
 /* =============== TAG CELL =============== */
@@ -4552,6 +4724,8 @@ function hoursCell(p) {
   function rerenderCell() {
     const newCell = hoursCell(p);
     wrap.replaceWith(newCell);
+    // The hourly balance depends on total hours, so refresh it too
+    refreshHourlyBalanceCell(p);
   }
 
   const btns = document.createElement('div');
@@ -5276,6 +5450,9 @@ document.getElementById('yearManageBtn').addEventListener('click', (e) => {
 
 // Theme toggle button
 document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+// Hourly rate pill (click to edit)
+document.getElementById('hourlyRatePill').addEventListener('click', promptHourlyRateEdit);
 
 // View tabs
 document.querySelectorAll('.view-tab').forEach(t => {
