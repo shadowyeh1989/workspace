@@ -315,11 +315,26 @@
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
   input[type=date] {
     font-family: var(--mono);
-    /* iOS Safari sometimes ignores width:100% on date inputs because of intrinsic content size. */
+    /* iOS Safari renders <input type=date> with native UI that ignores width:100%.
+       Stripping appearance forces it to use our CSS sizing. The native date picker
+       still pops up on tap. */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
     display: block;
+  }
+  /* On iOS, the date input's "calendar" indicator also has its own width; hide it
+     to prevent layout push (we lose the small icon but gain reliable width) */
+  input[type=date]::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.2em;
+  }
+  input[type=date]::-webkit-calendar-picker-indicator {
+    opacity: 0.6;
+    cursor: pointer;
   }
 
   /* Toolbar */
