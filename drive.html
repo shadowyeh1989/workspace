@@ -271,8 +271,19 @@
     /* By-drive view (依硬碟檢視) */
     .by-drive-section { padding: 14px !important; }
 
-    /* Stats panel: 2 columns instead of 4 */
-    .stats { grid-template-columns: 1fr 1fr !important; }
+    /* Stats panel: 4 columns on mobile, compact spacing */
+    .stats {
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 6px !important;
+      margin: 14px 0 !important;
+    }
+    .stats .stat {
+      min-width: 0 !important;
+      padding: 10px 8px !important;
+    }
+    .stats .stat .n { font-size: 18px !important; }
+    .stats .stat .l { font-size: 10.5px !important; margin-top: 1px !important; line-height: 1.3; }
   }
 
   @media (min-width: 721px) {
