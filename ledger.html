@@ -3061,8 +3061,58 @@ const BACKUP_META_KEY = 'shadow_ledger_backup_meta';
 const AUTO_BACKUP_DEBOUNCE_MS = 8000; // 8 seconds after last change
 
 let autoBackupHandle = null;     // FileSystemDirectoryHandle (if active)
+let autoBackupPending = null;    // handle whose permission lapsed — needs one-click resume
 let autoBackupTimer = null;
 let autoBackupInFlight = false;
+
+// IndexedDB persistence — survives page reload so user doesn't need to reselect folder
+const IDB_NAME = 'shadow_workspace_handles';
+const IDB_STORE = 'handles';
+const IDB_KEY = 'ledger_dir_handle';
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbGet(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) { console.warn('idbGet failed', e); return null; }
+}
+async function idbSet(key, value) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbSet failed', e); }
+}
+async function idbDel(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbDel failed', e); }
+}
 
 function backupMeta() {
   try {
@@ -3098,16 +3148,27 @@ function updateBackupBadge() {
   // Auto-backup active state
   if (autoBackupHandle) {
     const meta = backupMeta();
-    const minsAgo = meta.lastAutoBackup
-      ? Math.round((Date.now() - meta.lastAutoBackup) / 60000)
-      : null;
-    const label = minsAgo == null ? '自動備份中' :
-      minsAgo < 1 ? '剛剛已備份' :
-      minsAgo < 60 ? `${minsAgo} 分鐘前備份` :
-      `${Math.floor(minsAgo/60)} 小時前備份`;
+    const last = meta.lastAutoBackup;
+    // Show "剛剛備份" briefly after a successful write; otherwise show steady
+    // "自動備份中" — long gaps just mean nothing changed, not that backup is broken.
+    let label;
+    if (last && (Date.now() - last) < 30 * 60 * 1000) {
+      const minsAgo = Math.round((Date.now() - last) / 60000);
+      label = minsAgo < 1 ? '剛剛已備份' : `${minsAgo} 分鐘前備份`;
+    } else {
+      label = '自動備份中';
+    }
     badge.className = 'backup-badge auto';
     badge.innerHTML = `<span class="dot"></span><span>${label}</span>`;
-    badge.title = '自動備份運作中 · 點擊立即匯出 .json';
+    badge.title = '自動備份運作中 · 點擊查看選項';
+    return;
+  }
+
+  // Pending resume state — handle exists but permission lapsed
+  if (autoBackupPending) {
+    badge.className = 'backup-badge warn';
+    badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>點我恢復備份</span>`;
+    badge.title = '資料夾權限暫時失效,點擊一鍵恢復';
     return;
   }
 
@@ -3160,6 +3221,8 @@ async function enableAutoBackup() {
       }
     }
     autoBackupHandle = dirHandle;
+    autoBackupPending = null;
+    await idbSet(IDB_KEY, dirHandle);  // persist across sessions
     setBackupMeta({ autoBackupFolderName: dirHandle.name, autoBackupEnabledAt: Date.now() });
     showToast(`已啟用自動備份 · ${dirHandle.name}`);
     updateAutoBackupUI();
@@ -3173,9 +3236,52 @@ async function enableAutoBackup() {
   }
 }
 
-function disableAutoBackup() {
+async function resumeAutoBackup() {
+  if (!autoBackupPending) return;
+  try {
+    const req = await autoBackupPending.requestPermission({ mode: 'readwrite' });
+    if (req !== 'granted') { showToast('未取得資料夾寫入權限'); return; }
+    autoBackupHandle = autoBackupPending;
+    autoBackupPending = null;
+    showToast(`已恢復自動備份 · ${autoBackupHandle.name}`);
+    updateAutoBackupUI();
+    updateBackupBadge();
+    performAutoBackup();
+  } catch (err) {
+    showToast('恢復失敗:' + err.message);
+  }
+}
+
+async function restoreBackupOnBoot() {
+  if (!supportsFileSystemAccess()) return;
+  const handle = await idbGet(IDB_KEY);
+  if (!handle) return;
+  try {
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      autoBackupHandle = handle;
+      updateAutoBackupUI();
+      updateBackupBadge();
+      // Write once on boot so timestamp stays fresh — prevents "N days ago" being
+      // shown even when auto-backup is healthy (just no data changes since).
+      setTimeout(() => performAutoBackup(), 1500);
+    } else if (perm === 'prompt') {
+      autoBackupPending = handle;
+      updateBackupBadge();
+    } else {
+      await idbDel(IDB_KEY);
+    }
+  } catch (err) {
+    console.warn('Restore backup failed', err);
+    await idbDel(IDB_KEY);
+  }
+}
+
+async function disableAutoBackup() {
   autoBackupHandle = null;
+  autoBackupPending = null;
   if (autoBackupTimer) { clearTimeout(autoBackupTimer); autoBackupTimer = null; }
+  await idbDel(IDB_KEY);
   setBackupMeta({ autoBackupFolderName: null });
   showToast('已停用自動備份');
   updateAutoBackupUI();
@@ -3194,17 +3300,16 @@ async function performAutoBackup() {
   if (!autoBackupHandle || autoBackupInFlight) return;
   autoBackupInFlight = true;
   try {
-    // Verify permission still valid
+    // Check permission silently — if lapsed, move to pending instead of force-prompting
     const perm = await autoBackupHandle.queryPermission({ mode: 'readwrite' });
     if (perm !== 'granted') {
-      const req = await autoBackupHandle.requestPermission({ mode: 'readwrite' });
-      if (req !== 'granted') {
-        autoBackupHandle = null;
-        updateAutoBackupUI();
-        updateBackupBadge();
-        showToast('資料夾權限已失效,自動備份停用');
-        return;
-      }
+      autoBackupPending = autoBackupHandle;
+      autoBackupHandle = null;
+      if (autoBackupTimer) { clearTimeout(autoBackupTimer); autoBackupTimer = null; }
+      showToast('⚠️ 資料夾權限暫時失效,點備份徽章可一鍵恢復');
+      updateAutoBackupUI();
+      updateBackupBadge();
+      return;
     }
     // Write to a single "latest" file (overwrite each time)
     const fileHandle = await autoBackupHandle.getFileHandle('客戶接案管理_自動備份.json', { create: true });
@@ -3262,6 +3367,18 @@ function renderBackupMenu() {
           <span>⏹</span><span>停用自動備份</span>
         </div>
       `;
+    } else if (autoBackupPending) {
+      html += `
+        <div class="backup-menu-item accent" data-action="resume">
+          <span>▶</span><span>恢復自動備份 (${escapeHtml(autoBackupPending.name || '已選資料夾')})</span>
+        </div>
+        <div style="padding:6px 12px;font-size:11px;color:var(--text-3);line-height:1.5">
+          瀏覽器的資料夾權限暫時失效,點一下即可恢復,不用重新選資料夾。
+        </div>
+        <div class="backup-menu-item danger" data-action="disable">
+          <span>⏹</span><span>改用其他資料夾 (重選)</span>
+        </div>
+      `;
     } else {
       html += `
         <div class="backup-menu-item accent" data-action="enable">
@@ -3286,6 +3403,7 @@ function renderBackupMenu() {
       const action = el.dataset.action;
       if (action === 'export') { exportData(); closeBackupMenu(); }
       else if (action === 'enable') { enableAutoBackup(); /* don't close — enableAutoBackup re-renders */ }
+      else if (action === 'resume') { resumeAutoBackup(); /* re-renders */ }
       else if (action === 'disable') { disableAutoBackup(); closeBackupMenu(); }
     });
   });
@@ -5860,6 +5978,7 @@ try {
   renderAll();
   updateBackupBadge();
   updateAutoBackupUI();
+  restoreBackupOnBoot();  // restore saved dir handle if available
 } catch (e) {
   console.error('Initial render failed', e);
 }
