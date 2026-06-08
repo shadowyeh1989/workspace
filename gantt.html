@@ -170,9 +170,25 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5)}
 const {useState,useEffect,useRef}=React;
 const PC=['var(--accent)','#6a9c6a','#f59e0b','#c87f7f','#8b5cf6','#ec4899','#06b6d4','#f97316'];
 const today=new Date();today.setHours(0,0,0,0);
-const ds=d=>d.toISOString().slice(0,10);
+// Convert Date to 'YYYY-MM-DD' using LOCAL date components.
+// Was previously using `d.toISOString().slice(0,10)` which returns the UTC date —
+// in Taiwan (UTC+8), a local Date at midnight is actually 16:00 UTC of the previous
+// day, so the returned string was off by one day. This caused task bars to render
+// one column to the right of their actual date.
+const ds=d=>{
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+};
 const ad=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
-const db=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000);
+// Date-string diff in days. Parse YYYY-MM-DD as local midnight (not UTC) so that
+// differences are consistent with ds() above.
+const db=(a,b)=>{
+  const pa=typeof a==='string'?new Date(a+'T00:00:00'):a;
+  const pb=typeof b==='string'?new Date(b+'T00:00:00'):b;
+  return Math.round((pb-pa)/86400000);
+};
 let nPid=10,nTid=100;
 
 // ===== App-ready signal: bootstrap awaits this before pushing state into React =====
@@ -217,6 +233,15 @@ function initSupabase(){
   return true;
 }
 const supportsFSA=()=>typeof window.showDirectoryPicker==='function';
+
+// IndexedDB persistence so the dir handle survives reloads
+const IDB_NAME='shadow_workspace_handles';
+const IDB_STORE='handles';
+const IDB_KEY='gantt_dir_handle';
+function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open(IDB_NAME,1);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function idbGet(k){try{const db=await idbOpen();return await new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readonly');const r=tx.objectStore(IDB_STORE).get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}catch(e){console.warn('idbGet',e);return null;}}
+async function idbSet(k,v){try{const db=await idbOpen();return await new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).put(v,k);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}catch(e){console.warn('idbSet',e);}}
+async function idbDel(k){try{const db=await idbOpen();return await new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete(k);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}catch(e){console.warn('idbDel',e);}}
 function getBackupMeta(){
   try{const r=localStorage.getItem(BACKUP_META_KEY);return r?JSON.parse(r):{lastManualBackup:null,lastAutoBackup:null};}
   catch(e){return{lastManualBackup:null,lastAutoBackup:null};}
@@ -271,6 +296,9 @@ function App(){
   // Auto-backup (file system access API)
   const [autoBkActive,setAutoBkActive]=useState(false);
   const [autoBkFolderName,setAutoBkFolderName]=useState('');
+  // Pending state — handle exists but permission lapsed; user resumes with one click
+  const [autoBkPending,setAutoBkPending]=useState(false);
+  const autoBkPendingRef=useRef(null);
   const autoBkHandleRef=useRef(null);
   const autoBkTimerRef=useRef(null);
   const autoBkInFlightRef=useRef(false);
@@ -430,19 +458,63 @@ function App(){
         if(req!=='granted'){alert('未取得資料夾寫入權限');return;}
       }
       autoBkHandleRef.current=dirHandle;
+      autoBkPendingRef.current=null;
       setAutoBkActive(true);
+      setAutoBkPending(false);
       setAutoBkFolderName(dirHandle.name);
+      await idbSet(IDB_KEY,dirHandle);
       setBMeta(setBackupMeta({autoBackupFolderName:dirHandle.name,autoBackupEnabledAt:Date.now()}));
       setBMenuOpen(false);
       await performAutoBackup();
     }catch(err){if(err.name!=='AbortError')alert('啟用失敗:'+err.message);}
   }
 
-  function disableAutoBackup(){
+  async function resumeAutoBackup(){
+    const handle=autoBkPendingRef.current;
+    if(!handle)return;
+    try{
+      const req=await handle.requestPermission({mode:'readwrite'});
+      if(req!=='granted'){alert('未取得資料夾寫入權限');return;}
+      autoBkHandleRef.current=handle;
+      autoBkPendingRef.current=null;
+      setAutoBkActive(true);
+      setAutoBkPending(false);
+      setAutoBkFolderName(handle.name);
+      setBMenuOpen(false);
+      performAutoBackup();
+    }catch(err){alert('恢復失敗:'+err.message);}
+  }
+
+  async function restoreBackupOnBoot(){
+    if(!supportsFSA())return;
+    const handle=await idbGet(IDB_KEY);
+    if(!handle)return;
+    try{
+      const perm=await handle.queryPermission({mode:'readwrite'});
+      if(perm==='granted'){
+        autoBkHandleRef.current=handle;
+        setAutoBkActive(true);
+        setAutoBkFolderName(handle.name);
+        // Write once on boot so timestamp stays fresh
+        setTimeout(()=>performAutoBackup(),1500);
+      }else if(perm==='prompt'){
+        autoBkPendingRef.current=handle;
+        setAutoBkPending(true);
+        setAutoBkFolderName(handle.name);
+      }else{
+        await idbDel(IDB_KEY);
+      }
+    }catch(err){console.warn('Restore backup failed',err);await idbDel(IDB_KEY);}
+  }
+
+  async function disableAutoBackup(){
     autoBkHandleRef.current=null;
+    autoBkPendingRef.current=null;
     setAutoBkActive(false);
+    setAutoBkPending(false);
     setAutoBkFolderName('');
     if(autoBkTimerRef.current){clearTimeout(autoBkTimerRef.current);autoBkTimerRef.current=null;}
+    await idbDel(IDB_KEY);
     setBMeta(setBackupMeta({autoBackupFolderName:null}));
     setBMenuOpen(false);
   }
@@ -460,8 +532,13 @@ function App(){
       const dirHandle=autoBkHandleRef.current;
       const perm=await dirHandle.queryPermission({mode:'readwrite'});
       if(perm!=='granted'){
-        const req=await dirHandle.requestPermission({mode:'readwrite'});
-        if(req!=='granted'){autoBkHandleRef.current=null;setAutoBkActive(false);setAutoBkFolderName('');alert('資料夾權限失效,自動備份已停用');return;}
+        // Move to pending state so user can recover with one click
+        autoBkPendingRef.current=dirHandle;
+        autoBkHandleRef.current=null;
+        setAutoBkActive(false);
+        setAutoBkPending(true);
+        if(autoBkTimerRef.current){clearTimeout(autoBkTimerRef.current);autoBkTimerRef.current=null;}
+        return;
       }
       const allData=JSON.parse(localStorage.getItem('gantt-workspaces')||'[]');
       const fileHandle=await dirHandle.getFileHandle('甘特圖_自動備份.json',{create:true});
@@ -480,6 +557,8 @@ function App(){
     window.__setSyncStatus=setSyncStatus;
     // Signal that App has mounted — bootstrap is awaiting this
     if(appReadyResolve){ appReadyResolve(); }
+    // Restore saved dir handle (if any) so the user doesn't have to reselect every reload
+    restoreBackupOnBoot();
   },[]);
   // Always re-bind saveToCloud since it closes over currentUser/offlineMode
   useEffect(()=>{
@@ -758,9 +837,16 @@ function App(){
   const daysSinceBackup=lastBackup?(Date.now()-lastBackup)/86400000:Infinity;
   let bClass='neutral',bLabel='今日已備份',bIcon='✓';
   if(autoBkActive){
-    const m=lastBackup?Math.round((Date.now()-lastBackup)/60000):null;
-    bClass='auto';
-    bLabel=m==null?'自動備份中':m<1?'剛剛已備份':m<60?m+' 分鐘前':Math.floor(m/60)+' 小時前';
+    // Show "剛剛備份" briefly after a fresh write; otherwise show steady "自動備份中"
+    const last=bMeta.lastAutoBackup;
+    if(last&&(Date.now()-last)<30*60*1000){
+      const m=Math.round((Date.now()-last)/60000);
+      bClass='auto';bLabel=m<1?'剛剛已備份':m+' 分鐘前備份';
+    } else {
+      bClass='auto';bLabel='自動備份中';
+    }
+  } else if(autoBkPending){
+    bClass='warn';bLabel='點我恢復備份';bIcon='▶';
   } else if(!lastBackup){
     bClass='warn';bLabel='尚未備份過';bIcon='!';
   } else if(daysSinceBackup>=14){
@@ -927,6 +1013,24 @@ function App(){
                       onMouseEnter={e=>e.currentTarget.style.background='var(--danger-bg)'}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       ⏹ 停用自動備份
+                    </div>
+                  </>
+                ):autoBkPending?(
+                  <>
+                    <div onClick={resumeAutoBackup}
+                      style={{padding:'8px 10px',fontSize:12,color:'var(--accent)',cursor:'pointer',borderRadius:6,display:'flex',alignItems:'center',gap:8}}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--accent-soft)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      ▶ 恢復自動備份 ({autoBkFolderName})
+                    </div>
+                    <div style={{padding:'4px 10px 8px',fontSize:10,color:'var(--text-3)',lineHeight:1.5}}>
+                      瀏覽器的資料夾權限暫時失效,點一下即可恢復,不用重新選資料夾。
+                    </div>
+                    <div onClick={disableAutoBackup}
+                      style={{padding:'8px 10px',fontSize:12,color:'var(--danger)',cursor:'pointer',borderRadius:6}}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--danger-bg)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      ⏹ 改用其他資料夾 (重選)
                     </div>
                   </>
                 ):(
