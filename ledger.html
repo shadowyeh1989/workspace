@@ -496,6 +496,29 @@
   .col-withholding { width: 100px; }
   .col-notes { width: 220px; }
   .col-hourly-balance { width: 110px; }
+  .col-withhold-amt { width: 95px; }
+  .withhold-amt-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 6px 4px;
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    font-size: 13px;
+  }
+  .wa-value {
+    padding: 2px 8px;
+    border-radius: 5px;
+    color: #c8a06a;
+    background: rgba(212,160,92,0.08);
+    cursor: help;
+    font-weight: 500;
+  }
+  [data-theme="light"] .wa-value {
+    color: #8a5a1a;
+    background: rgba(168,116,52,0.12);
+  }
+  .wa-empty { color: var(--text-3); font-style: italic; font-size: 12px; }
   .hourly-balance-cell {
     display: flex;
     align-items: center;
@@ -2829,6 +2852,21 @@ function promptHourlyRateEdit() {
   showToast(`已更新 ${yr} 年度時薪為 NT$${v.toLocaleString('en-US')}`);
 }
 
+// 預扣稅額計算
+// 規則:9B 稿費／演講費 單筆給付 ≥ 2 萬,需預扣 10%(扣繳義務人代扣)。
+// 9A 使用者要求不計算,固定為 0。
+// 其他扣繳類別也不算。
+// 此金額為「資訊欄」,不影響淨利顯示。
+const WITHHOLDING_THRESHOLD_9B = 20000;
+const WITHHOLDING_RATE_9B = 0.10;
+function computeWithholdingAmount(project) {
+  if (!project) return 0;
+  if (project.withholding !== '9B') return 0;
+  const income = Number(project.income);
+  if (isNaN(income) || income < WITHHOLDING_THRESHOLD_9B) return 0;
+  return Math.round(income * WITHHOLDING_RATE_9B);
+}
+
 // 淨利 − 工時 × 時薪
 // Returns null if both fields are empty (so we can show a dash).
 function computeHourlyBalance(project, year) {
@@ -3632,6 +3670,7 @@ function renderMonthly() {
     { id: 'paymentStatus',  label: '付款狀態', cls: 'col-payment' },
     { id: 'hours',          label: '工時', cls: 'col-hours' },
     { id: 'withholding',    label: '扣繳類別', cls: 'col-withholding' },
+    { id: 'withholdingAmount', label: '預扣稅額', cls: 'col-num col-withhold-amt', style: 'text-align:right' },
     { id: 'notes',          label: '備註', cls: 'col-notes' },
     { id: 'hourlyBalance',  label: `時薪結餘`, cls: 'col-num col-hourly-balance', style: 'text-align:right' }
   ];
@@ -4002,6 +4041,13 @@ function renderRow(p, idx) {
   const tdWh = document.createElement('td');
   tdWh.appendChild(tagCell(p, 'withholding', 'withholding'));
   tr.appendChild(tdWh);
+
+  // Withholding amount (預扣稅額) — read-only computed
+  const tdWa = document.createElement('td');
+  tdWa.appendChild(withholdingAmountCell(p));
+  tdWa.className = 'col-num col-withhold-amt';
+  tdWa.style.textAlign = 'right';
+  tr.appendChild(tdWa);
 
   // Notes
   const tdNotes = document.createElement('td');
@@ -4519,6 +4565,10 @@ function numInput(p, field) {
     if (field === 'afterExpense' || field === 'income') {
       refreshHourlyBalanceCell(p);
     }
+    // Income change also affects withholding amount (9B ≥ 2萬 規則)
+    if (field === 'income') {
+      refreshWithholdingAmountCell(p);
+    }
   };
   return inp;
 }
@@ -4568,6 +4618,29 @@ function hourlyBalanceCell(p) {
 
   wrap.innerHTML = `<span class="hb-value ${cls}" title="淨利 ${net.toLocaleString('en-US')} − 工時 ${fmtHours(hours)} × 時薪 ${rate} = ${bal > 0 ? '+' : ''}${Math.round(bal).toLocaleString('en-US')}">${sign}${absStr}</span>`;
   return wrap;
+}
+
+/* =============== WITHHOLDING AMOUNT CELL (read-only computed) =============== */
+function withholdingAmountCell(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'withhold-amt-cell';
+  const amt = computeWithholdingAmount(p);
+  if (amt === 0) {
+    wrap.innerHTML = `<span class="wa-empty">—</span>`;
+    return wrap;
+  }
+  const income = Number(p.income) || 0;
+  wrap.innerHTML = `<span class="wa-value" title="9B 單筆滿 ${WITHHOLDING_THRESHOLD_9B.toLocaleString('en-US')} 須預扣 10%:${income.toLocaleString('en-US')} × 10% = ${amt.toLocaleString('en-US')}">${amt.toLocaleString('en-US')}</span>`;
+  return wrap;
+}
+
+function refreshWithholdingAmountCell(p) {
+  const row = document.querySelector(`tr[data-id="${p.id}"]`);
+  if (!row) return;
+  const td = row.querySelector('.col-withhold-amt');
+  if (!td) return;
+  td.innerHTML = '';
+  td.appendChild(withholdingAmountCell(p));
 }
 
 /* =============== TAG CELL =============== */
@@ -4740,6 +4813,10 @@ function refreshTagCell(cell, p, field, kind) {
     e.className = 'tag-empty';
     e.textContent = '—';
     cell.appendChild(e);
+  }
+  // Side effect: when withholding category changes, recompute the withholding amount cell
+  if (field === 'withholding') {
+    refreshWithholdingAmountCell(p);
   }
 }
 
@@ -5142,9 +5219,10 @@ function renderTaxSummary() {
     const inc = Number(p.income) || 0;
     grandTotal += inc;
     if (!p.withholding) return;
-    if (!byCategory[p.withholding]) byCategory[p.withholding] = { total: 0, count: 0 };
+    if (!byCategory[p.withholding]) byCategory[p.withholding] = { total: 0, count: 0, withheld: 0 };
     byCategory[p.withholding].total += inc;
     byCategory[p.withholding].count += 1;
+    byCategory[p.withholding].withheld += computeWithholdingAmount(p);
   });
 
   // Header — show active year + tax standard year label
@@ -5199,6 +5277,15 @@ function renderTaxSummary() {
       </div>
     `;
 
+    // Withheld amount row — show for any category that has a withheld total (currently 9B only)
+    const withheld = data.withheld || 0;
+    const withheldRow = withheld > 0
+      ? `<div class="tax-card-row" style="color:var(--text-3);font-size:12px">
+           <span class="label">已預扣 10%</span>
+           <span class="value" style="font-family:var(--mono);color:#c8a06a">NT$ ${fmtNum(withheld)}</span>
+         </div>`
+      : '';
+
     let noteHtml = '';
     if (deduction > 0) {
       const taxable = Math.max(0, data.total - deduction);
@@ -5211,9 +5298,10 @@ function renderTaxSummary() {
           <span class="label">應稅金額</span>
           <span class="value">NT$ ${fmtNum(taxable)}</span>
         </div>
+        ${withheldRow}
       `;
       if (tag.name === '9B') {
-        noteHtml = `<div class="tax-note">稿費 / 版稅 / 演講費全年享有 <strong style="color:var(--text-2)">18 萬元免稅額</strong>(所得稅法第 4 條第 1 項第 23 款),超過部分始計入綜合所得課稅。</div>`;
+        noteHtml = `<div class="tax-note">稿費 / 版稅 / 演講費全年享有 <strong style="color:var(--text-2)">18 萬元免稅額</strong>(所得稅法第 4 條第 1 項第 23 款),超過部分始計入綜合所得課稅。<br><br>單筆給付達 <strong style="color:var(--text-2)">2 萬元</strong>時,扣繳義務人須先預扣 <strong style="color:var(--text-2)">10%</strong>(報稅時可扣抵)。</div>`;
       } else if (tag.name === '50') {
         const wan = (deduction / 10000).toFixed(1).replace(/\.0$/, '');
         noteHtml = `<div class="tax-note">${escapeHtml(taxStd.yearLabel)} 薪資所得特別扣除額為 <strong style="color:var(--text-2)">${wan} 萬元</strong>,可選擇定額扣除或核實認列必要費用(擇優適用)。</div>`;
@@ -5224,6 +5312,7 @@ function renderTaxSummary() {
           <span class="label">合計</span>
           <span class="value">NT$ ${fmtNum(data.total)}</span>
         </div>
+        ${withheldRow}
       `;
       if (tag.name === '9A') {
         noteHtml = `<div class="tax-note">執行業務所得無年度免稅 / 扣除額,需併入綜合所得課稅;每筆給付達 2 萬元門檻時,扣繳義務人須先預扣繳 <strong style="color:var(--text-2)">10%</strong>。</div>`;
