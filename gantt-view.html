@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0e0e10">
+<link rel="icon" type="image/x-icon" href="icons/favicon.ico">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<title>甘特圖 · 唯讀分享</title>
+<script>
+(function(){try{var s=localStorage.getItem('shadow_ledger_theme');if(s==='light'||s==='dark'){document.documentElement.setAttribute('data-theme',s);return;}}catch(e){}document.documentElement.setAttribute('data-theme','dark');})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+:root,html[data-theme="dark"]{
+  --bg:#0e0e10;--surface:#18181b;--surface-2:#232327;--surface-hover:#2a2a2f;
+  --text:#ededee;--text-2:#a1a1a6;--text-3:#6e6e73;
+  --accent:#d4a05c;--accent-soft:#6b5234;--border:#2e2e33;
+  --danger:#c87f7f;--success:#6a9c6a;
+  --today:#d4a05c;
+  --serif:'Iowan Old Style','Charter',Georgia,serif;
+  --sans:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,monospace;
+}
+html[data-theme="light"]{
+  --bg:#faf8f3;--surface:#fff;--surface-2:#f1ede4;--surface-hover:#ebe6da;
+  --text:#2a2620;--text-2:#5e5849;--text-3:#8a8270;
+  --accent:#a87434;--accent-soft:#ecdcc4;--border:#d8d2c4;
+  --danger:#a04848;--success:#4a7a4a;
+  --today:#a87434;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+button{font-family:inherit}
+::-webkit-scrollbar{height:8px;width:8px}
+::-webkit-scrollbar-track{background:var(--surface-2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+@keyframes pulseDot{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* === HEADER === */
+.gv-header{padding:18px 24px 0;max-width:1400px;margin:0 auto;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.gv-brand{display:flex;flex-direction:column;gap:2px}
+.gv-brand-tag{font-size:10px;color:var(--text-3);letter-spacing:.18em;text-transform:uppercase}
+.gv-title{font-family:var(--serif);font-style:italic;font-weight:500;font-size:22px;color:var(--text);margin:0}
+.gv-meta{font-size:11px;color:var(--text-3);margin-top:4px;font-family:var(--mono)}
+.gv-actions{display:flex;gap:8px;flex-wrap:wrap}
+.gv-toggle{display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:3px;font-size:12px}
+.gv-toggle button{background:transparent;border:none;color:var(--text-2);padding:6px 12px;border-radius:999px;cursor:pointer;font-family:inherit;font-size:12px}
+.gv-toggle button.active{background:var(--accent);color:var(--bg);font-weight:500}
+.gv-icon-btn{background:var(--surface);border:1px solid var(--border);color:var(--text-2);width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.gv-icon-btn:hover{color:var(--accent);border-color:var(--accent)}
+.gv-readonly-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:var(--accent-soft);border:1px solid var(--accent);font-size:11px;color:var(--accent);font-weight:500}
+
+/* === MAIN === */
+.gv-main{max-width:1400px;margin:0 auto;padding:18px 24px 60px}
+.gv-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+
+/* === GANTT TABLE === */
+.gantt-wrap{overflow:auto;max-height:75vh}
+.gantt-row{display:flex;border-bottom:1px solid rgba(46,46,51,0.35)}
+.gantt-row:last-child{border-bottom:none}
+.gantt-side{flex-shrink:0;width:280px;padding:10px 14px;border-right:1px solid var(--border);background:var(--surface);position:sticky;left:0;z-index:5;display:flex;align-items:center;gap:8px;font-size:13px}
+[data-theme="light"] .gantt-row{border-bottom-color:rgba(216,210,196,0.5)}
+.gantt-proj-side{font-weight:500;color:var(--text)}
+.gantt-proj-side .pdot{width:4px;height:18px;border-radius:2px;flex-shrink:0}
+.gantt-task-side{padding-left:32px;color:var(--text-2);font-size:12.5px}
+.gantt-task-side .tdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.gantt-dates{position:relative;flex:1;min-width:0;background:linear-gradient(to bottom,transparent 33px,var(--bg) 33px) repeat,linear-gradient(to right,transparent 0,transparent 100%);height:36px}
+.gantt-header-row{position:sticky;top:0;z-index:6;background:var(--surface)}
+.gantt-header-row .gantt-dates{height:60px;border-bottom:1px solid var(--border)}
+.gantt-header-side{font-size:10px;color:var(--text-3);letter-spacing:.15em;text-transform:uppercase;font-weight:500;height:60px;border-bottom:1px solid var(--border)}
+.day-cell{position:absolute;top:32px;height:28px;display:flex;align-items:center;padding-left:3px;font-size:9px;color:var(--text-2);border-left:1px solid rgba(46,46,51,0.4)}
+[data-theme="light"] .day-cell{border-left-color:rgba(216,210,196,0.6)}
+.day-cell.weekend{background:rgba(255,255,255,0.025)}
+[data-theme="light"] .day-cell.weekend{background:rgba(80,60,30,0.04)}
+.day-cell.today{background:rgba(212,160,92,0.18);color:var(--accent);font-weight:700}
+[data-theme="light"] .day-cell.today{background:rgba(168,116,52,0.18)}
+.month-label{position:absolute;top:0;height:32px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:var(--text-2);border-left:1px solid var(--border)}
+.task-bar{position:absolute;top:6px;height:22px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:11px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default}
+.task-bar.hollow{background:transparent !important;border:1px dashed currentColor;height:22px;color:var(--text-3);font-style:italic}
+.today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--today);z-index:2;pointer-events:none;box-shadow:0 0 8px var(--today)}
+
+/* === LIST VIEW (mobile / forced) === */
+.list-wrap{padding:14px}
+.list-section{margin-bottom:22px}
+.list-section:last-child{margin-bottom:0}
+.list-section-title{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.list-section-title .badge{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--accent);font-weight:500}
+.list-section-title .count{font-size:11px;color:var(--text-3);font-family:var(--mono)}
+.list-section-title .range{font-size:11px;color:var(--text-3);font-family:var(--mono);margin-left:auto}
+.list-task{display:flex;gap:10px;padding:10px 12px;background:var(--surface-2);border-radius:10px;margin-bottom:6px;border-left:3px solid var(--accent);align-items:flex-start}
+.list-task .meta{flex:1;min-width:0}
+.list-task .task-name{font-size:13.5px;color:var(--text);font-weight:500;line-height:1.4}
+.list-task .proj-line{font-size:11px;color:var(--text-3);margin-top:3px;display:flex;align-items:center;gap:5px}
+.list-task .proj-line .pdot{width:6px;height:6px;border-radius:50%}
+.list-task .date{font-size:11px;color:var(--text-2);font-family:var(--mono);font-feature-settings:"tnum";white-space:nowrap;text-align:right;line-height:1.4;flex-shrink:0}
+.list-task.today{border-left-color:var(--today);background:rgba(212,160,92,0.06)}
+[data-theme="light"] .list-task.today{background:rgba(168,116,52,0.08)}
+.list-empty{padding:30px 14px;text-align:center;font-size:13px;color:var(--text-3)}
+
+.gv-state-msg{padding:60px 24px;text-align:center;color:var(--text-2);font-size:14px}
+.gv-state-msg .big{font-family:var(--serif);font-style:italic;font-size:24px;color:var(--text);margin-bottom:8px}
+
+/* Responsive */
+@media (max-width: 720px){
+  .gv-header{padding:12px 14px 0}
+  .gv-main{padding:12px 14px 40px}
+  .gv-title{font-size:18px}
+  .gantt-side, .gantt-header-side{width:160px}
+  .gantt-task-side{padding-left:20px;font-size:12px}
+}
+
+#root{min-height:100vh}
+.loader-spinner{width:32px;height:32px;border:3px solid var(--surface-2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState,useEffect,useMemo}=React;
+
+// ===== Supabase =====
+const SUPABASE_URL='https://bokmluubqcnezjcboogq.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJva21sdXVicWNuZXpqY2Jvb2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDI2ODIsImV4cCI6MjA5NTk3ODY4Mn0.W-cvOomywSU2L8xJaX98052_UZqed7rIkALQ_ETxxTw';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:false}});
+
+// ===== Date helpers (matches gantt.html, with local-tz fix) =====
+const today=new Date();today.setHours(0,0,0,0);
+const ds=d=>{const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`;};
+const ad=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
+const db=(a,b)=>{const pa=typeof a==='string'?new Date(a+'T00:00:00'):a;const pb=typeof b==='string'?new Date(b+'T00:00:00'):b;return Math.round((pb-pa)/86400000);};
+const COLORS=['#d4a05c','#6a9c6a','#f59e0b','#c87f7f','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+
+function darken(hex,p){const h=hex.replace('#','');const r=parseInt(h.substr(0,2),16);const g=parseInt(h.substr(2,2),16);const b=parseInt(h.substr(4,2),16);const f=1-p;return '#'+[r,g,b].map(x=>Math.max(0,Math.round(x*f)).toString(16).padStart(2,'0')).join('');}
+function lighten(hex,p){const h=hex.replace('#','');const r=parseInt(h.substr(0,2),16);const g=parseInt(h.substr(2,2),16);const b=parseInt(h.substr(4,2),16);return '#'+[r,g,b].map(x=>Math.min(255,Math.round(x+(255-x)*p)).toString(16).padStart(2,'0')).join('');}
+
+// ===== App =====
+function App(){
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState(null);
+  const [data,setData]=useState(null);
+  const [meta,setMeta]=useState(null);
+  // 'auto' = detect; 'gantt' or 'list' = forced
+  const [view,setView]=useState('auto');
+  const [theme,setTheme]=useState(document.documentElement.getAttribute('data-theme')||'dark');
+  const [now,setNow]=useState(Date.now());
+
+  // Refresh "today" every minute
+  useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(t);},[]);
+
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search);
+    const id=params.get('id');
+    if(!id){setError('沒有指定分享 ID,連結可能不完整');setLoading(false);return;}
+    (async()=>{
+      try{
+        const {data:row,error:err}=await sb.from('shared_gantt')
+          .select('id,workspace_data,workspace_name,created_at,updated_at,expires_at,is_active')
+          .eq('id',id)
+          .maybeSingle();
+        if(err)throw err;
+        if(!row){setError('找不到這個分享連結,可能已被撤銷或不存在');setLoading(false);return;}
+        if(!row.is_active){setError('此分享連結已被撤銷');setLoading(false);return;}
+        if(row.expires_at&&new Date(row.expires_at)<new Date()){setError('此分享連結已過期');setLoading(false);return;}
+        setData(row.workspace_data||{});
+        setMeta({name:row.workspace_name,created:row.created_at,updated:row.updated_at,expires:row.expires_at});
+      }catch(e){
+        console.error(e);
+        setError('載入失敗:'+e.message);
+      }finally{setLoading(false);}
+    })();
+  },[]);
+
+  function toggleTheme(){
+    const next=theme==='dark'?'light':'dark';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme',next);
+    try{localStorage.setItem('shadow_ledger_theme',next);}catch(e){}
+    const meta=document.querySelector('meta[name="theme-color"]');
+    if(meta)meta.setAttribute('content',next==='light'?'#faf8f3':'#0e0e10');
+  }
+
+  if(loading){
+    return<div className="gv-state-msg">
+      <div className="loader-spinner"/>
+      <div className="big">載入中…</div>
+      <div>正在取得分享資料</div>
+    </div>;
+  }
+  if(error){
+    return<div className="gv-state-msg">
+      <div className="big">無法載入</div>
+      <div style={{color:'var(--danger)',marginBottom:16}}>{error}</div>
+      <div style={{fontSize:12,color:'var(--text-3)'}}>請向分享者確認連結是否正確,或請對方重新產生新的連結。</div>
+    </div>;
+  }
+
+  // Detect: small screens = list view by default
+  const isNarrow=window.innerWidth<720;
+  const effectiveView=view==='auto'?(isNarrow?'list':'gantt'):view;
+
+  return<>
+    <header className="gv-header">
+      <div className="gv-brand">
+        <span className="gv-brand-tag">Workspace · Shared</span>
+        <h1 className="gv-title">{meta.name||'未命名工作區'}</h1>
+        <div className="gv-meta">
+          最後更新:{new Date(meta.updated).toLocaleString('zh-TW',{hour12:false})}
+          {meta.expires&&<> · 過期:{new Date(meta.expires).toLocaleDateString('zh-TW')}</>}
+        </div>
+      </div>
+      <div className="gv-actions">
+        <div className="gv-readonly-pill">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          唯讀檢視
+        </div>
+        <div className="gv-toggle">
+          <button className={effectiveView==='gantt'?'active':''} onClick={()=>setView('gantt')}>甘特圖</button>
+          <button className={effectiveView==='list'?'active':''} onClick={()=>setView('list')}>列表</button>
+        </div>
+        <button className="gv-icon-btn" onClick={toggleTheme} title="切換主題">
+          {theme==='dark'?
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            :<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>}
+        </button>
+      </div>
+    </header>
+    <main className="gv-main">
+      <div className="gv-card">
+        {effectiveView==='gantt'?<GanttView data={data}/>:<ListView data={data}/>}
+      </div>
+    </main>
+  </>;
+}
+
+// ===== Gantt View =====
+function GanttView({data}){
+  const projs=data.projs||[];
+  const [vDays,setVDays]=useState(45);
+  const [vStart,setVStart]=useState(()=>ad(today,-7));
+  const cw=Math.max(18,Math.min(50,Math.floor(900/vDays)));
+
+  const dates=useMemo(()=>Array.from({length:vDays},(_,i)=>ad(vStart,i)),[vStart,vDays]);
+  const months=useMemo(()=>{
+    const out=[];let cur=null;
+    dates.forEach((d,i)=>{
+      const lbl=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+      if(cur&&cur.l===lbl){cur.e=i;}
+      else{if(cur)out.push(cur);cur={l:lbl,s:i,e:i};}
+    });
+    if(cur)out.push(cur);
+    return out;
+  },[dates]);
+
+  const todayOff=db(ds(vStart),ds(today));
+  const showToday=todayOff>=0&&todayOff<vDays;
+
+  if(projs.length===0){
+    return<div className="gv-state-msg">
+      <div className="big">這個工作區還沒有專案</div>
+    </div>;
+  }
+
+  // Build rows
+  const rows=[];
+  projs.forEach(p=>{
+    rows.push({type:'proj',proj:p});
+    (p.tasks||[]).forEach(t=>{
+      rows.push({type:'task',proj:p,task:t});
+    });
+  });
+
+  const totalW=vDays*cw;
+
+  function renderBar(p,task){
+    if(!task.start||!task.end)return<span className="task-bar hollow" style={{left:0,width:60,position:'static'}}>未排程</span>;
+    const off=db(ds(vStart),task.start);
+    const len=db(task.start,task.end)+0.5;
+    const visEnd=off+len;
+    if(visEnd<0||off>=vDays)return null;
+    const bL=Math.max(0,off)*cw;
+    const bW=Math.max(cw*0.5,(len-Math.max(0,-off))*cw);
+    return<div className="task-bar" style={{left:bL,width:bW-4,background:p.color}} title={task.name+(task.note?'\n\n'+task.note:'')}>
+      {task.name}
+    </div>;
+  }
+
+  function renderProjBar(p){
+    const tasks=(p.tasks||[]).filter(t=>t.start&&t.end);
+    if(tasks.length===0)return null;
+    const starts=tasks.map(t=>new Date(t.start+'T00:00:00').getTime());
+    const ends=tasks.map(t=>new Date(t.end+'T00:00:00').getTime());
+    const minS=ds(new Date(Math.min(...starts)));
+    const maxE=ds(new Date(Math.max(...ends)));
+    const off=db(ds(vStart),minS);
+    const len=db(minS,maxE)+1;
+    const visEnd=off+len;
+    if(visEnd<0||off>=vDays)return null;
+    const bL=Math.max(0,off)*cw;
+    const bW=Math.max(cw*0.5,(len-Math.max(0,-off))*cw);
+    return<div className="task-bar" style={{left:bL,width:bW-4,background:p.color,opacity:0.55}}>
+      {/* nameless overview bar */}
+    </div>;
+  }
+
+  return<div className="gantt-wrap">
+    {/* Date range controls */}
+    <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid var(--border)',flexWrap:'wrap',background:'var(--surface)'}}>
+      <button onClick={()=>setVStart(v=>ad(v,-14))} style={btn()}>◀</button>
+      <button onClick={()=>setVStart(ad(today,-7))} style={btn()}>今天</button>
+      <button onClick={()=>setVStart(v=>ad(v,14))} style={btn()}>▶</button>
+      <div style={{display:'inline-flex',background:'var(--surface-2)',borderRadius:6,marginLeft:8}}>
+        <button onClick={()=>setVDays(d=>Math.max(14,d-15))} style={{...btn(),borderRadius:'6px 0 0 6px'}}>−</button>
+        <span style={{padding:'5px 10px',fontSize:12,color:'var(--text-2)',fontFamily:'var(--mono)',alignSelf:'center'}}>{vDays} 天</span>
+        <button onClick={()=>setVDays(d=>Math.min(120,d+15))} style={{...btn(),borderRadius:'0 6px 6px 0'}}>+</button>
+      </div>
+    </div>
+
+    {/* Header row */}
+    <div className="gantt-row gantt-header-row">
+      <div className="gantt-side gantt-header-side" style={{display:'flex',alignItems:'center'}}>專案 / 任務</div>
+      <div className="gantt-dates" style={{width:totalW,height:60,minWidth:totalW}}>
+        {months.map(m=><div key={m.l} className="month-label" style={{left:m.s*cw,width:(m.e-m.s+1)*cw}}>{m.l}</div>)}
+        {dates.map((d,i)=>{
+          const isToday=ds(d)===ds(today);
+          const isWeekend=d.getDay()===0||d.getDay()===6;
+          return<div key={i} className={'day-cell'+(isToday?' today':'')+(isWeekend?' weekend':'')}
+            style={{left:i*cw,width:cw,minWidth:cw}}>{cw>=22?d.getDate():''}</div>;
+        })}
+        {showToday&&<div className="today-line" style={{left:todayOff*cw+cw/2-1}}/>}
+      </div>
+    </div>
+
+    {/* Body rows */}
+    {rows.map((r,i)=>{
+      if(r.type==='proj'){
+        return<div key={'p_'+r.proj.id} className="gantt-row">
+          <div className="gantt-side gantt-proj-side">
+            <div className="pdot" style={{background:r.proj.color}}/>
+            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.proj.name||'(未命名)'}</span>
+          </div>
+          <div className="gantt-dates" style={{width:totalW,minWidth:totalW,height:36}}>
+            {dates.map((d,j)=>{
+              const isWeekend=d.getDay()===0||d.getDay()===6;
+              return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:36}}/>:null;
+            })}
+            {renderProjBar(r.proj)}
+            {showToday&&<div className="today-line" style={{left:todayOff*cw+cw/2-1}}/>}
+          </div>
+        </div>;
+      }
+      return<div key={'t_'+r.proj.id+'_'+r.task.id} className="gantt-row">
+        <div className="gantt-side gantt-task-side" style={{display:'flex',alignItems:'center',gap:8}}>
+          <div className="tdot" style={{background:r.proj.color}}/>
+          <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.task.name||'(未命名)'}</span>
+        </div>
+        <div className="gantt-dates" style={{width:totalW,minWidth:totalW,height:36}}>
+          {dates.map((d,j)=>{
+            const isWeekend=d.getDay()===0||d.getDay()===6;
+            return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:36}}/>:null;
+          })}
+          {renderBar(r.proj,r.task)}
+          {showToday&&<div className="today-line" style={{left:todayOff*cw+cw/2-1}}/>}
+        </div>
+      </div>;
+    })}
+  </div>;
+}
+
+function btn(){return{background:'var(--surface-2)',border:'1px solid var(--border)',color:'var(--text)',padding:'5px 11px',borderRadius:6,fontSize:12,cursor:'pointer',fontFamily:'inherit'};}
+
+// ===== List View =====
+function ListView({data}){
+  const projs=data.projs||[];
+  const todayStr=ds(today);
+
+  // Compute week ranges
+  const weekStart=new Date(today);
+  weekStart.setDate(today.getDate()-today.getDay()+(today.getDay()===0?-6:1)); // Monday
+  const weekEnd=ad(weekStart,6);
+  const nextWeekStart=ad(weekEnd,1);
+  const nextWeekEnd=ad(nextWeekStart,6);
+
+  const sections=[
+    {key:'overdue',title:'已逾期',range:null,filter:t=>t.end&&t.end<todayStr},
+    {key:'today',title:'今天',range:todayStr,filter:t=>t.start&&t.end&&t.start<=todayStr&&t.end>=todayStr},
+    {key:'thisweek',title:'本週剩餘',range:`${ds(weekStart)} ~ ${ds(weekEnd)}`,filter:t=>t.start&&t.start>todayStr&&t.start<=ds(weekEnd)},
+    {key:'nextweek',title:'下週',range:`${ds(nextWeekStart)} ~ ${ds(nextWeekEnd)}`,filter:t=>t.start&&t.start>=ds(nextWeekStart)&&t.start<=ds(nextWeekEnd)},
+    {key:'later',title:'之後',range:null,filter:t=>t.start&&t.start>ds(nextWeekEnd)},
+    {key:'undated',title:'未排程',range:null,filter:t=>!t.start||!t.end}
+  ];
+
+  // Flatten all tasks
+  const allTasks=[];
+  projs.forEach(p=>{
+    (p.tasks||[]).forEach(t=>{
+      allTasks.push({proj:p,task:t});
+    });
+  });
+
+  if(allTasks.length===0){
+    return<div className="gv-state-msg">
+      <div className="big">這個工作區還沒有任務</div>
+    </div>;
+  }
+
+  return<div className="list-wrap">
+    {sections.map(sec=>{
+      const items=allTasks.filter(({task})=>sec.filter(task))
+        .sort((a,b)=>{
+          if(!a.task.start)return 1;
+          if(!b.task.start)return -1;
+          return a.task.start.localeCompare(b.task.start);
+        });
+      if(items.length===0)return null;
+      return<div key={sec.key} className="list-section">
+        <div className="list-section-title">
+          <span className="badge">{sec.title}</span>
+          <span className="count">{items.length} 項</span>
+          {sec.range&&<span className="range">{sec.range}</span>}
+        </div>
+        {items.map(({proj,task},i)=>{
+          const isToday=task.start&&task.end&&task.start<=todayStr&&task.end>=todayStr;
+          return<div key={proj.id+'_'+task.id+'_'+i}
+            className={'list-task'+(isToday?' today':'')}
+            style={{borderLeftColor:proj.color}}>
+            <div className="meta">
+              <div className="task-name">{task.name||'(未命名)'}</div>
+              <div className="proj-line">
+                <span className="pdot" style={{background:proj.color}}/>
+                <span>{proj.name||'(未命名專案)'}</span>
+              </div>
+              {task.note&&<div style={{fontSize:11,color:'var(--text-3)',marginTop:4,whiteSpace:'pre-wrap'}}>{task.note}</div>}
+            </div>
+            <div className="date">
+              {task.start?<>{task.start.slice(5)}<br/>{task.end&&task.end!==task.start?<>→ {task.end.slice(5)}</>:<>當天</>}</>:<span style={{color:'var(--text-3)'}}>未排程</span>}
+            </div>
+          </div>;
+        })}
+      </div>;
+    })}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

@@ -304,6 +304,12 @@ function App(){
   const autoBkInFlightRef=useRef(false);
   const [tick,setTick]=useState(0); // forces re-render every minute
 
+  // ===== Share (read-only public link) =====
+  const [shareOpen,setShareOpen]=useState(false);
+  const [shareLoading,setShareLoading]=useState(false);
+  const [shareInfo,setShareInfo]=useState(null);  // {id, expires_at, created_at} or null when not shared
+  const [shareCopied,setShareCopied]=useState(false);
+
   // Helper: load a workspace into state
   function loadWs(ws){
     setProjs(ws.projs||[]);
@@ -379,6 +385,8 @@ function App(){
           // Schedule cloud sync and auto-backup
           scheduleCloudSync();
           scheduleAutoBackup();
+          // If this workspace is being shared, push the latest snapshot to the share record
+          refreshShareSnapshot();
           return updated;
         });
         setSaveSt('saved');
@@ -445,6 +453,110 @@ function App(){
     if(!currentUser||offlineMode)return;
     if(cloudSyncTimerRef.current)clearTimeout(cloudSyncTimerRef.current);
     cloudSyncTimerRef.current=setTimeout(saveToCloud,CLOUD_SYNC_DEBOUNCE_MS);
+  }
+
+  // ===== Share (read-only public link) =====
+  const SHARE_TABLE='shared_gantt';
+  function buildShareUrl(id){
+    // Same site as gantt.html, swap to gantt-view.html
+    const base=window.location.href.split('?')[0].split('#')[0].replace(/gantt\.html.*$/,'gantt-view.html');
+    return base+'?id='+id;
+  }
+  function shortId(){
+    // 10-char URL-safe random ID
+    const chars='abcdefghijkmnopqrstuvwxyz23456789';
+    let s='';
+    const a=crypto.getRandomValues(new Uint8Array(10));
+    for(const v of a) s+=chars[v%chars.length];
+    return s;
+  }
+  async function loadShareInfo(){
+    if(!sbClient||!currentUser||!wsId)return;
+    try{
+      const {data,error}=await sbClient.from(SHARE_TABLE)
+        .select('id,expires_at,created_at,updated_at,is_active')
+        .eq('user_id',currentUser.id)
+        .eq('workspace_id',wsId)
+        .eq('is_active',true)
+        .maybeSingle();
+      if(error&&error.code!=='PGRST116'){console.warn(error);return;}
+      setShareInfo(data||null);
+    }catch(e){console.warn('loadShareInfo failed',e);}
+  }
+  // Reload share info whenever workspace changes or user signs in
+  useEffect(()=>{loadShareInfo();},[wsId,currentUser]);
+
+  async function createShare(daysToExpire){
+    if(!sbClient||!currentUser){alert('需要先登入才能分享');return;}
+    setShareLoading(true);
+    try{
+      const id=shortId();
+      const expiresAt=daysToExpire?new Date(Date.now()+daysToExpire*86400000).toISOString():null;
+      const ws=wsList.find(w=>w.id===wsId);
+      const wsName=ws?ws.name:'';
+      const wsSnap={projs,tags,title,nPid,nTid,name:wsName};
+      const {error}=await sbClient.from(SHARE_TABLE).insert({
+        id,
+        user_id:currentUser.id,
+        workspace_id:wsId,
+        workspace_data:wsSnap,
+        workspace_name:wsName,
+        expires_at:expiresAt,
+        is_active:true
+      });
+      if(error)throw error;
+      setShareInfo({id,expires_at:expiresAt,created_at:new Date().toISOString(),is_active:true});
+    }catch(e){
+      console.error('Create share failed',e);
+      alert('產生分享連結失敗:'+e.message);
+    }finally{
+      setShareLoading(false);
+    }
+  }
+  async function refreshShareSnapshot(){
+    // Push current state to existing share record so viewers see latest
+    if(!sbClient||!currentUser||!shareInfo)return;
+    try{
+      const ws=wsList.find(w=>w.id===wsId);
+      const wsName=ws?ws.name:'';
+      const wsSnap={projs,tags,title,nPid,nTid,name:wsName};
+      const {error}=await sbClient.from(SHARE_TABLE).update({
+        workspace_data:wsSnap,
+        workspace_name:wsName,
+        updated_at:new Date().toISOString()
+      }).eq('id',shareInfo.id).eq('user_id',currentUser.id);
+      if(error)throw error;
+    }catch(e){console.warn('refreshShareSnapshot failed',e);}
+  }
+  async function updateShareExpiry(daysToExpire){
+    if(!sbClient||!currentUser||!shareInfo)return;
+    setShareLoading(true);
+    try{
+      const expiresAt=daysToExpire?new Date(Date.now()+daysToExpire*86400000).toISOString():null;
+      const {error}=await sbClient.from(SHARE_TABLE).update({expires_at:expiresAt}).eq('id',shareInfo.id).eq('user_id',currentUser.id);
+      if(error)throw error;
+      setShareInfo(s=>s?{...s,expires_at:expiresAt}:s);
+    }catch(e){alert('更新失敗:'+e.message);}
+    finally{setShareLoading(false);}
+  }
+  async function revokeShare(){
+    if(!sbClient||!currentUser||!shareInfo)return;
+    if(!confirm('確定要撤銷這個分享連結嗎?\n撤銷後此連結將立即失效,任何人都無法再透過此連結查看。'))return;
+    setShareLoading(true);
+    try{
+      const {error}=await sbClient.from(SHARE_TABLE).delete().eq('id',shareInfo.id).eq('user_id',currentUser.id);
+      if(error)throw error;
+      setShareInfo(null);
+    }catch(e){alert('撤銷失敗:'+e.message);}
+    finally{setShareLoading(false);}
+  }
+  async function copyShareLink(){
+    if(!shareInfo)return;
+    try{
+      await navigator.clipboard.writeText(buildShareUrl(shareInfo.id));
+      setShareCopied(true);
+      setTimeout(()=>setShareCopied(false),2000);
+    }catch(e){alert('複製失敗,請手動複製');}
   }
 
   // ===== Auto-backup (file system access API) =====
@@ -980,6 +1092,19 @@ function App(){
           <input ref={fileRef} type="file" accept=".json" onChange={importJSON} style={{display:'none'}}/>
           <button onClick={()=>fileRef.current.click()} style={B('var(--accent-soft)','var(--accent)')}>匯入 JSON</button>
 
+          {/* Share button — only show when logged in */}
+          {currentUser&&(
+            <button onClick={()=>setShareOpen(true)}
+              style={{...B(shareInfo?'var(--success)':'var(--surface-2)',shareInfo?'#fff':'var(--text)'),display:'inline-flex',alignItems:'center',gap:5}}
+              title={shareInfo?'此工作區正在分享中':'產生唯讀分享連結'}>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              {shareInfo?'分享中':'分享'}
+            </button>
+          )}
+
           {/* Backup badge dropdown */}
           <div ref={bMenuRef} style={{position:'relative'}}>
             <button onClick={()=>setBMenuOpen(o=>!o)}
@@ -1239,6 +1364,89 @@ function App(){
             </div>
           </div>
         </>
+      )}
+
+      {shareOpen&&(
+        <div style={{position:'fixed',inset:0,background:'#000b',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:16}} onClick={()=>setShareOpen(false)}>
+          <div style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:16,padding:24,width:'100%',maxWidth:440,boxShadow:'0 24px 60px #000a'}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:8}}>
+              <div>
+                <h2 style={{margin:0,fontSize:17,color:'var(--text)',fontFamily:"'Iowan Old Style','Charter',serif",fontStyle:'italic',fontWeight:500}}>分享工作區</h2>
+                <div style={{fontSize:10,color:'var(--text-3)',letterSpacing:'0.18em',textTransform:'uppercase',marginTop:2}}>Read-only · public link</div>
+              </div>
+              <button onClick={()=>setShareOpen(false)} style={{background:'transparent',border:'none',color:'var(--text-3)',cursor:'pointer',fontSize:20,padding:0,lineHeight:1}}>×</button>
+            </div>
+
+            <div style={{fontSize:13,color:'var(--text-2)',lineHeight:1.6,marginBottom:16,padding:'10px 12px',background:'var(--surface)',borderRadius:8,border:'1px solid var(--border)'}}>
+              📋 工作區:<strong style={{color:'var(--text)'}}>{(wsList.find(w=>w.id===wsId)||{}).name||'未命名'}</strong>
+              <div style={{fontSize:11,color:'var(--text-3)',marginTop:4,lineHeight:1.6}}>
+                分享連結的人可以看到所有專案與任務,<strong>但無法編輯</strong>。<br/>
+                資料變動會即時同步,你可以隨時撤銷連結。
+              </div>
+            </div>
+
+            {!shareInfo?(
+              <>
+                <div style={{fontSize:11,color:'var(--text-3)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>選擇過期時間</div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:18}}>
+                  {[
+                    {label:'7 天',days:7},
+                    {label:'30 天',days:30},
+                    {label:'永久',days:null}
+                  ].map(opt=>(
+                    <button key={opt.label} disabled={shareLoading} onClick={()=>createShare(opt.days)}
+                      style={{flex:1,minWidth:80,padding:'10px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',cursor:shareLoading?'wait':'pointer',fontSize:13,fontFamily:'inherit',transition:'all .15s'}}
+                      onMouseEnter={e=>{if(!shareLoading)e.currentTarget.style.borderColor='var(--accent)';}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';}}>
+                      {shareLoading?'...':opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{fontSize:11,color:'var(--text-3)',lineHeight:1.5}}>
+                  💡 即使設了過期時間,你也可以隨時手動撤銷,或之後再延長期限。
+                </div>
+              </>
+            ):(
+              <>
+                <div style={{fontSize:11,color:'var(--text-3)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>分享連結</div>
+                <div style={{display:'flex',gap:8,marginBottom:12}}>
+                  <input type="text" readOnly value={buildShareUrl(shareInfo.id)}
+                    onFocus={e=>e.target.select()}
+                    style={{flex:1,background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text)',padding:'10px 12px',borderRadius:7,fontSize:11,fontFamily:'ui-monospace,monospace',minWidth:0}}/>
+                  <button onClick={copyShareLink}
+                    style={{background:shareCopied?'var(--success)':'var(--accent)',color:'#fff',border:'none',padding:'10px 14px',borderRadius:7,cursor:'pointer',fontSize:12,fontWeight:500,fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                    {shareCopied?'✓ 已複製':'📋 複製'}
+                  </button>
+                </div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:18,lineHeight:1.6}}>
+                  建立時間:{new Date(shareInfo.created_at).toLocaleString('zh-TW',{hour12:false})}<br/>
+                  過期時間:{shareInfo.expires_at?new Date(shareInfo.expires_at).toLocaleString('zh-TW',{hour12:false}):<span style={{color:'var(--accent)'}}>永久(不過期)</span>}
+                </div>
+
+                <div style={{fontSize:11,color:'var(--text-3)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>變更過期時間</div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:18}}>
+                  {[
+                    {label:'+ 7 天',days:7},
+                    {label:'+ 30 天',days:30},
+                    {label:'設為永久',days:null}
+                  ].map(opt=>(
+                    <button key={opt.label} disabled={shareLoading} onClick={()=>updateShareExpiry(opt.days)}
+                      style={{flex:1,minWidth:80,padding:'8px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-2)',cursor:shareLoading?'wait':'pointer',fontSize:12,fontFamily:'inherit'}}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button disabled={shareLoading} onClick={revokeShare}
+                  style={{width:'100%',padding:'10px',borderRadius:8,border:'1px solid var(--danger)',background:'transparent',color:'var(--danger)',cursor:shareLoading?'wait':'pointer',fontSize:13,fontFamily:'inherit',transition:'all .15s'}}
+                  onMouseEnter={e=>{if(!shareLoading){e.currentTarget.style.background='var(--danger)';e.currentTarget.style.color='#fff';}}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--danger)';}}>
+                  {shareLoading?'...':'⏹ 撤銷分享連結'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {modal&&(
