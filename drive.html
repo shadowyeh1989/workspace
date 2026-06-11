@@ -772,7 +772,9 @@ const AUTO_FILE = "備份硬碟清單_自動備份.json";
 // IndexedDB persistence for FileSystemDirectoryHandle
 const IDB_NAME = 'shadow_workspace_handles';
 const IDB_STORE = 'handles';
-const IDB_KEY = 'drive_dir_handle';
+// Shared key — all four tools use the same handle so one folder setting covers everything.
+const IDB_KEY = 'shared_workspace_dir_handle';
+const LEGACY_IDB_KEY = 'drive_dir_handle';
 function idbOpen() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, 1);
@@ -1414,7 +1416,11 @@ async function resumeAutoBackup(){
 }
 async function restoreBackupOnBoot(){
   if(!FS_SUPPORTED) return;
-  const handle = await idbGet(IDB_KEY);
+  let handle = await idbGet(IDB_KEY);
+  if(!handle){
+    const legacy = await idbGet(LEGACY_IDB_KEY);
+    if(legacy){ handle = legacy; await idbSet(IDB_KEY, legacy); await idbDel(LEGACY_IDB_KEY); }
+  }
   if(!handle) return;
   try {
     const perm = await handle.queryPermission({ mode: "readwrite" });

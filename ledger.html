@@ -3106,7 +3106,10 @@ let autoBackupInFlight = false;
 // IndexedDB persistence — survives page reload so user doesn't need to reselect folder
 const IDB_NAME = 'shadow_workspace_handles';
 const IDB_STORE = 'handles';
-const IDB_KEY = 'ledger_dir_handle';
+// Shared key — all four tools use the same handle so one folder setting covers everything.
+const IDB_KEY = 'shared_workspace_dir_handle';
+// Legacy key (pre-shared): if found, we'll promote it to the shared key on first run.
+const LEGACY_IDB_KEY = 'ledger_dir_handle';
 function idbOpen() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, 1);
@@ -3292,7 +3295,17 @@ async function resumeAutoBackup() {
 
 async function restoreBackupOnBoot() {
   if (!supportsFileSystemAccess()) return;
-  const handle = await idbGet(IDB_KEY);
+  // Try shared key first
+  let handle = await idbGet(IDB_KEY);
+  // If no shared handle but legacy per-tool handle exists, promote it
+  if (!handle) {
+    const legacy = await idbGet(LEGACY_IDB_KEY);
+    if (legacy) {
+      handle = legacy;
+      await idbSet(IDB_KEY, legacy);
+      await idbDel(LEGACY_IDB_KEY);
+    }
+  }
   if (!handle) return;
   try {
     const perm = await handle.queryPermission({ mode: 'readwrite' });
