@@ -71,7 +71,18 @@ button{font-family:inherit}
 .gantt-proj-side .pdot{width:4px;height:18px;border-radius:2px;flex-shrink:0}
 .gantt-task-side{padding-left:32px;color:var(--text-2);font-size:12.5px}
 .gantt-task-side .tdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.gantt-dates{position:relative;flex:1;min-width:0;background:linear-gradient(to bottom,transparent 33px,var(--bg) 33px) repeat,linear-gradient(to right,transparent 0,transparent 100%);height:36px}
+.gantt-dates{position:relative;flex:1;min-width:0;height:36px}
+.gantt-row .gantt-dates{
+  /* Vertical grid lines using a CSS variable that is set inline (--cw) */
+  background-image:linear-gradient(to right,rgba(46,46,51,0.4) 1px,transparent 1px);
+  background-size:var(--cw, 24px) 100%;
+  background-position:0 0;
+  background-repeat:repeat;
+}
+[data-theme="light"] .gantt-row .gantt-dates{
+  background-image:linear-gradient(to right,rgba(216,210,196,0.6) 1px,transparent 1px);
+}
+.gantt-header-row .gantt-dates{background-image:none}
 .gantt-header-row{position:sticky;top:0;z-index:6;background:var(--surface)}
 .gantt-header-row .gantt-dates{height:60px;border-bottom:1px solid var(--border)}
 .gantt-header-side{font-size:10px;color:var(--text-3);letter-spacing:.15em;text-transform:uppercase;font-weight:500;height:60px;border-bottom:1px solid var(--border)}
@@ -246,7 +257,7 @@ function GanttView({data}){
   const projs=data.projs||[];
   const [vDays,setVDays]=useState(45);
   const [vStart,setVStart]=useState(()=>ad(today,-7));
-  const cw=Math.max(18,Math.min(50,Math.floor(900/vDays)));
+  const cw=Math.max(24,Math.min(50,Math.floor(900/vDays)));
 
   const dates=useMemo(()=>Array.from({length:vDays},(_,i)=>ad(vStart,i)),[vStart,vDays]);
   const months=useMemo(()=>{
@@ -333,7 +344,7 @@ function GanttView({data}){
           const isToday=ds(d)===ds(today);
           const isWeekend=d.getDay()===0||d.getDay()===6;
           return<div key={i} className={'day-cell'+(isToday?' today':'')+(isWeekend?' weekend':'')}
-            style={{left:i*cw,width:cw,minWidth:cw}}>{cw>=22?d.getDate():''}</div>;
+            style={{left:i*cw,width:cw,minWidth:cw}}>{d.getDate()}</div>;
         })}
         {showToday&&<div className="today-line" style={{left:todayOff*cw+cw/2-1}}/>}
       </div>
@@ -347,10 +358,10 @@ function GanttView({data}){
             <div className="pdot" style={{background:r.proj.color}}/>
             <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.proj.name||'(未命名)'}</span>
           </div>
-          <div className="gantt-dates" style={{width:totalW,minWidth:totalW,height:36}}>
+          <div className="gantt-dates" style={{width:totalW,minWidth:totalW,height:36,'--cw':cw+'px'}}>
             {dates.map((d,j)=>{
               const isWeekend=d.getDay()===0||d.getDay()===6;
-              return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:36}}/>:null;
+              return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:36,borderLeft:'none'}}/>:null;
             })}
             {renderProjBar(r.proj)}
             {showToday&&<div className="today-line" style={{left:todayOff*cw+cw/2-1}}/>}
@@ -362,10 +373,10 @@ function GanttView({data}){
           <div className="tdot" style={{background:r.proj.color}}/>
           <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.task.name||'(未命名)'}</span>
         </div>
-        <div className="gantt-dates" style={{width:totalW,minWidth:totalW,height:36}}>
+        <div className="gantt-dates" style={{width:totalW,minWidth:totalW,height:36,'--cw':cw+'px'}}>
           {dates.map((d,j)=>{
             const isWeekend=d.getDay()===0||d.getDay()===6;
-            return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:36}}/>:null;
+            return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:36,borderLeft:'none'}}/>:null;
           })}
           {renderBar(r.proj,r.task)}
           {showToday&&<div className="today-line" style={{left:todayOff*cw+cw/2-1}}/>}
