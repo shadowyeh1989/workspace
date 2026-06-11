@@ -711,17 +711,17 @@
     font-style: italic;
   }
 
-  /* Tag dropdown */
+  /* Tag dropdown — uses position:fixed so it can escape table-cell clipping
+     and overflow:hidden parents. Positioned via JS based on anchor's bounding rect. */
   .tag-dropdown {
-    position: absolute;
-    top: calc(100% - 4px);
-    left: 8px;
-    z-index: 100;
+    position: fixed;
+    z-index: 1000;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 6px;
     min-width: 180px;
+    max-width: 280px;
     box-shadow: var(--shadow-popup);
     animation: dropdownIn 0.12s ease-out;
   }
@@ -4806,13 +4806,49 @@ function openTagDropdownFor(anchor, p, field, kind) {
   addRow.appendChild(btn);
   dropdown.appendChild(addRow);
 
-  anchor.style.position = 'relative';
-  anchor.appendChild(dropdown);
+  // Append to body so the dropdown can overflow table cells / footers without being clipped
+  document.body.appendChild(dropdown);
+
+  // Position based on anchor cell's bounding rect; flip up if there isn't space below
+  function positionDropdown() {
+    const rect = anchor.getBoundingClientRect();
+    // Measure dropdown after it's in the DOM
+    const ddH = dropdown.offsetHeight;
+    const ddW = dropdown.offsetWidth;
+    const margin = 6;
+    const vpH = window.innerHeight;
+    const vpW = window.innerWidth;
+
+    // Default: open below; flip up if not enough room AND there's more room above
+    const spaceBelow = vpH - rect.bottom;
+    const spaceAbove = rect.top;
+    let top;
+    if (spaceBelow >= ddH + margin || spaceBelow >= spaceAbove) {
+      top = rect.bottom + 2;
+    } else {
+      top = Math.max(margin, rect.top - ddH - 2);
+    }
+    // Horizontal: align to anchor's left, but keep inside viewport
+    let left = rect.left;
+    if (left + ddW > vpW - margin) left = vpW - ddW - margin;
+    if (left < margin) left = margin;
+
+    dropdown.style.top = top + 'px';
+    dropdown.style.left = left + 'px';
+  }
+  positionDropdown();
+  // Reposition on scroll/resize while open
+  const reposition = () => positionDropdown();
+  window.addEventListener('scroll', reposition, true);
+  window.addEventListener('resize', reposition);
+
   openTagDropdown = dropdown;
   setTimeout(() => inp.focus({ preventScroll: true }), 50);
 
   function closeDropdown() {
     if (openTagDropdown === dropdown) openTagDropdown = null;
+    window.removeEventListener('scroll', reposition, true);
+    window.removeEventListener('resize', reposition);
     dropdown.remove();
   }
 }
