@@ -65,6 +65,14 @@ button{font-family:inherit}
 .gantt-wrap{overflow:auto;max-height:75vh}
 .gantt-row{display:flex;border-bottom:1px solid rgba(46,46,51,0.35)}
 .gantt-row:last-child{border-bottom:none}
+/* Project overview row — visually thinner, sits like a section header */
+.gantt-row.proj-row{background:rgba(255,255,255,0.015)}
+[data-theme="light"] .gantt-row.proj-row{background:rgba(80,60,30,0.025)}
+.gantt-row.proj-row .gantt-side{padding:6px 14px}
+.gantt-row.proj-row .gantt-dates{height:22px !important}
+.gantt-row.proj-row .pdot{width:3px;height:14px;border-radius:2px}
+.gantt-row.proj-row .gantt-proj-side{font-size:12.5px;font-weight:600;color:var(--text-2);letter-spacing:0.02em}
+.gantt-row.proj-row .proj-overview-bar{position:absolute;top:6px;height:10px;border-radius:3px;opacity:0.45}
 .gantt-side{flex-shrink:0;width:280px;padding:10px 14px;border-right:1px solid var(--border);background:var(--surface);position:sticky;left:0;z-index:5;display:flex;align-items:center;gap:8px;font-size:13px}
 [data-theme="light"] .gantt-row{border-bottom-color:rgba(216,210,196,0.5)}
 .gantt-proj-side{font-weight:500;color:var(--text)}
@@ -95,6 +103,7 @@ button{font-family:inherit}
 .month-label{position:absolute;top:0;height:32px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:var(--text-2);border-left:1px solid var(--border)}
 .task-bar{position:absolute;top:6px;height:22px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:11px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default}
 .task-bar.hollow{background:transparent !important;border:1px dashed currentColor;height:22px;color:var(--text-3);font-style:italic}
+.task-end-label{position:absolute;top:9px;font-size:11px;font-family:var(--mono);font-feature-settings:"tnum";white-space:nowrap;font-weight:500;pointer-events:none}
 .today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--today);z-index:2;pointer-events:none;box-shadow:0 0 8px var(--today)}
 
 /* === LIST VIEW (mobile / forced) === */
@@ -256,7 +265,7 @@ function App(){
 function GanttView({data}){
   const projs=data.projs||[];
   const [vDays,setVDays]=useState(45);
-  const [vStart,setVStart]=useState(()=>ad(today,-7));
+  const [vStart,setVStart]=useState(()=>today);
   const cw=Math.max(24,Math.min(50,Math.floor(900/vDays)));
 
   const dates=useMemo(()=>Array.from({length:vDays},(_,i)=>ad(vStart,i)),[vStart,vDays]);
@@ -299,12 +308,18 @@ function GanttView({data}){
     if(visEnd<0||off>=vDays)return null;
     const bL=Math.max(0,off)*cw;
     const bW=Math.max(cw*0.5,(len-Math.max(0,-off))*cw);
-    return<div className="task-bar" style={{left:bL,width:bW-4,background:p.color}} title={task.name+(task.note?'\n\n'+task.note:'')}>
-      {task.name}
-    </div>;
+    // Show end date label (06/14 style) just after the bar
+    const endDate=new Date(task.end+'T00:00:00');
+    const dateStr=`${String(endDate.getMonth()+1).padStart(2,'0')}/${String(endDate.getDate()).padStart(2,'0')}`;
+    return<>
+      <div className="task-bar" style={{left:bL,width:bW-4,background:p.color}} title={task.name+(task.note?'\n\n'+task.note:'')}>
+        {task.name}
+      </div>
+      <div className="task-end-label" style={{left:bL+bW+2,color:p.color}}>{dateStr}</div>
+    </>;
   }
 
-  function renderProjBar(p){
+  function renderProjOverviewBar(p){
     const tasks=(p.tasks||[]).filter(t=>t.start&&t.end);
     if(tasks.length===0)return null;
     const starts=tasks.map(t=>new Date(t.start+'T00:00:00').getTime());
@@ -317,16 +332,14 @@ function GanttView({data}){
     if(visEnd<0||off>=vDays)return null;
     const bL=Math.max(0,off)*cw;
     const bW=Math.max(cw*0.5,(len-Math.max(0,-off))*cw);
-    return<div className="task-bar" style={{left:bL,width:bW-4,background:p.color,opacity:0.55}}>
-      {/* nameless overview bar */}
-    </div>;
+    return<div className="proj-overview-bar" style={{left:bL,width:bW-4,background:p.color}}/>;
   }
 
   return<div className="gantt-wrap">
     {/* Date range controls */}
     <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid var(--border)',flexWrap:'wrap',background:'var(--surface)'}}>
       <button onClick={()=>setVStart(v=>ad(v,-14))} style={btn()}>◀</button>
-      <button onClick={()=>setVStart(ad(today,-7))} style={btn()}>今天</button>
+      <button onClick={()=>setVStart(today)} style={btn()}>今天</button>
       <button onClick={()=>setVStart(v=>ad(v,14))} style={btn()}>▶</button>
       <div style={{display:'inline-flex',background:'var(--surface-2)',borderRadius:6,marginLeft:8}}>
         <button onClick={()=>setVDays(d=>Math.max(14,d-15))} style={{...btn(),borderRadius:'6px 0 0 6px'}}>−</button>
@@ -353,17 +366,17 @@ function GanttView({data}){
     {/* Body rows */}
     {rows.map((r,i)=>{
       if(r.type==='proj'){
-        return<div key={'p_'+r.proj.id} className="gantt-row">
+        return<div key={'p_'+r.proj.id} className="gantt-row proj-row">
           <div className="gantt-side gantt-proj-side">
             <div className="pdot" style={{background:r.proj.color}}/>
             <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.proj.name||'(未命名)'}</span>
           </div>
-          <div className="gantt-dates" style={{width:totalW,minWidth:totalW,height:36,'--cw':cw+'px'}}>
+          <div className="gantt-dates" style={{width:totalW,minWidth:totalW,'--cw':cw+'px'}}>
             {dates.map((d,j)=>{
               const isWeekend=d.getDay()===0||d.getDay()===6;
-              return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:36,borderLeft:'none'}}/>:null;
+              return isWeekend?<div key={j} className="day-cell weekend" style={{left:j*cw,top:0,width:cw,minWidth:cw,height:22,borderLeft:'none'}}/>:null;
             })}
-            {renderProjBar(r.proj)}
+            {renderProjOverviewBar(r.proj)}
             {showToday&&<div className="today-line" style={{left:todayOff*cw+cw/2-1}}/>}
           </div>
         </div>;
