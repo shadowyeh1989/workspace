@@ -492,7 +492,7 @@ function App(){
     try{
       const id=shortId();
       const expiresAt=daysToExpire?new Date(Date.now()+daysToExpire*86400000).toISOString():null;
-      const ws=wsList.find(w=>w.id===wsId);
+      const ws=workspaces.find(w=>w.id===wsId);
       const wsName=ws?ws.name:'';
       const wsSnap={projs,tags,title,nPid,nTid,name:wsName};
       const {error}=await sbClient.from(SHARE_TABLE).insert({
@@ -517,7 +517,7 @@ function App(){
     // Push current state to existing share record so viewers see latest
     if(!sbClient||!currentUser||!shareInfo)return;
     try{
-      const ws=wsList.find(w=>w.id===wsId);
+      const ws=workspaces.find(w=>w.id===wsId);
       const wsName=ws?ws.name:'';
       const wsSnap={projs,tags,title,nPid,nTid,name:wsName};
       const {error}=await sbClient.from(SHARE_TABLE).update({
@@ -1378,7 +1378,7 @@ function App(){
             </div>
 
             <div style={{fontSize:13,color:'var(--text-2)',lineHeight:1.6,marginBottom:16,padding:'10px 12px',background:'var(--surface)',borderRadius:8,border:'1px solid var(--border)'}}>
-              📋 工作區:<strong style={{color:'var(--text)'}}>{(wsList.find(w=>w.id===wsId)||{}).name||'未命名'}</strong>
+              📋 工作區:<strong style={{color:'var(--text)'}}>{(workspaces.find(w=>w.id===wsId)||{}).name||'未命名'}</strong>
               <div style={{fontSize:11,color:'var(--text-3)',marginTop:4,lineHeight:1.6}}>
                 分享連結的人可以看到所有專案與任務,<strong>但無法編輯</strong>。<br/>
                 資料變動會即時同步,你可以隨時撤銷連結。
