@@ -303,11 +303,15 @@ function GanttView({data}){
   function renderBar(p,task){
     if(!task.start||!task.end)return<span className="task-bar hollow" style={{left:0,width:60,position:'static'}}>未排程</span>;
     const off=db(ds(vStart),task.start);
-    const len=db(task.start,task.end)+0.5;
+    const dayCount=db(task.start,task.end);  // 0 = single day, 1 = two days, etc.
+    // Visual length: single-day tasks get a full cell width (1.0), multi-day get N+0.5
+    // (so the end date is past the last day's column). This stops the end-date label
+    // from overlapping the bar on single-day tasks.
+    const len=dayCount===0?1.0:dayCount+0.5;
     const visEnd=off+len;
     if(visEnd<0||off>=vDays)return null;
     const bL=Math.max(0,off)*cw;
-    const bW=Math.max(cw*0.5,(len-Math.max(0,-off))*cw);
+    const bW=Math.max(cw*0.9,(len-Math.max(0,-off))*cw);
     // Show end date label (06/14 style) just after the bar
     const endDate=new Date(task.end+'T00:00:00');
     const dateStr=`${String(endDate.getMonth()+1).padStart(2,'0')}/${String(endDate.getDate()).padStart(2,'0')}`;
