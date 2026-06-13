@@ -514,32 +514,36 @@
     gap: 3px;
   }
   .bc-proj-item {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 12px;
     border-radius: 6px;
     cursor: pointer;
     transition: background 0.12s;
-    align-items: center;
   }
   .bc-proj-item:hover { background: var(--surface-2); }
+  .bc-proj-left {
+    flex: 1;
+    min-width: 0;  /* allow truncation inside flex child */
+  }
   .bc-proj-name {
-    color: var(--ink); font-size: 13px; font-weight: 500;
+    color: var(--ink); font-size: 13.5px; font-weight: 500;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    line-height: 1.3;
   }
   .bc-proj-meta {
-    grid-column: 1;
-    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-    margin-top: 2px;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-top: 3px;
   }
   .bc-proj-date { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
   .bc-proj-note { font-size: 10.5px; color: var(--faint); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
   .bc-proj-size {
-    grid-row: 1 / span 2;
+    flex-shrink: 0;
     font-family: var(--mono); font-feature-settings: "tnum";
-    font-size: 13px; color: var(--accent); text-align: right;
-    align-self: center;
+    font-size: 14px; color: var(--accent);
+    text-align: right;
+    min-width: 75px;
   }
 
   /* ============ MOBILE LAYOUT ============ */
@@ -1548,6 +1552,9 @@ function updateBulkToolbar(){
     toolbar.style.display = '';
     const countEl = document.getElementById('bulk-count');
     if(countEl) countEl.textContent = count;
+    // Populate drive + client picker options every time toolbar shows,
+    // so dropdowns are never empty regardless of click order
+    populateBulkPickers();
   }
 }
 
@@ -2099,10 +2106,12 @@ function renderByClientBreakdown(){
       .sort((a, b) => b._gb - a._gb);
     const projItemsHtml = cRecs.map(r => `
       <div class="bc-proj-item" onclick="scrollToRecord('${r.id}')">
-        <div class="bc-proj-name">${esc(r.project) || '<span style="color:var(--faint);font-style:italic">(無專案名)</span>'}</div>
-        <div class="bc-proj-meta">
-          <span class="bc-proj-date">${esc(r.date)}</span>
-          ${r.note ? `<span class="bc-proj-note">${esc(r.note)}</span>` : ''}
+        <div class="bc-proj-left">
+          <div class="bc-proj-name">${esc(r.project) || '<span style="color:var(--faint);font-style:italic">(無專案名)</span>'}</div>
+          <div class="bc-proj-meta">
+            <span class="bc-proj-date">${esc(r.date)}</span>
+            ${r.note ? `<span class="bc-proj-note">${esc(r.note)}</span>` : ''}
+          </div>
         </div>
         <div class="bc-proj-size">${r.size ? esc(r.size) : '<span style="color:var(--faint)">—</span>'}</div>
       </div>
