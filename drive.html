@@ -103,6 +103,8 @@
   button:hover, .btn:hover { border-color: var(--accent); color: var(--accent); }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   button.primary:hover { filter: brightness(1.08); color: #fff; }
+  button.primary.edit-mode { background: #5e8a5e; border-color: #5e8a5e; }
+  [data-theme="light"] button.primary.edit-mode { background: #4a7a4a; border-color: #4a7a4a; }
   button.ghost { background: transparent; }
   button.tiny { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
   button.danger:hover { border-color: #c0392b; color: #c0392b; }
@@ -295,6 +297,101 @@
     line-height: 1.5;
     text-align: center;
   }
+
+  /* Bulk selection toolbar */
+  .bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    background: var(--accent-soft, rgba(212,160,92,0.15));
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    flex-wrap: wrap;
+  }
+  .bulk-toolbar-info {
+    font-size: 12px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .bulk-toolbar-info strong {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 2px;
+  }
+  .bulk-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .bulk-action-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .bulk-action-group label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-right: 2px;
+  }
+  .bulk-action-group select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    min-width: 140px;
+  }
+  .bulk-action-group button {
+    padding: 5px 12px;
+    font-size: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .bulk-action-group button:hover { filter: brightness(1.08); }
+  .bulk-toolbar > .danger {
+    padding: 5px 12px;
+    font-size: 12px;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .bulk-toolbar > .danger:hover { background: var(--danger); color: #fff; }
+  .bulk-toolbar > .ghost {
+    padding: 5px 12px;
+    font-size: 12px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  /* Selected row highlight */
+  tr.bulk-selected { background: rgba(212,160,92,0.08); }
+  [data-theme="light"] tr.bulk-selected { background: rgba(168,116,52,0.08); }
+  .rec-card.bulk-selected { border-color: var(--accent); background: rgba(212,160,92,0.05); }
+  /* Bulk checkbox column */
+  .col-bulk { width: 32px; text-align: center; padding: 8px 4px !important; }
+  .col-bulk input[type="checkbox"] { cursor: pointer; width: 14px; height: 14px; accent-color: var(--accent); }
+  .rec-card-check {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--muted); cursor: pointer;
+    margin-right: 8px;
+  }
+  .rec-card-check input { accent-color: var(--accent); cursor: pointer; }
 
   /* Duplicate banner (within drive card) */
   .dup-banner {
@@ -967,7 +1064,7 @@
     <div class="tabs">
       <button class="tab active" id="tab-records" onclick="switchTab('records')">備份紀錄</button>
       <button class="tab" id="tab-drives" onclick="switchTab('drives')">硬碟管理</button>
-      <button class="tab" id="tab-byDrive" onclick="switchTab('byDrive')">依硬碟檢視</button>
+      <button class="tab" id="tab-byDrive" onclick="switchTab('byDrive')">客戶用量拆解</button>
     </div>
   </div>
 </header>
@@ -979,7 +1076,7 @@
     <div class="stats" id="stats"></div>
 
     <div class="card">
-      <h2>新增一筆備份</h2>
+      <h2 id="form-title">新增一筆備份</h2>
       <div class="field" style="margin-bottom:14px;">
         <label>客戶</label>
         <div class="chip-area" id="company-chips"></div>
@@ -999,7 +1096,10 @@
         </div>
         <div class="field" style="grid-column: auto;">
           <label>&nbsp;</label>
-          <button class="primary" onclick="addRecord()">＋ 新增</button>
+          <div style="display:flex;gap:6px">
+            <button id="submit-btn" class="primary" onclick="addRecord()">＋ 新增</button>
+            <button id="cancel-edit-btn" class="ghost" onclick="cancelEdit()" style="display:none">✕</button>
+          </div>
         </div>
       </div>
       <div class="add-grid" style="margin-top:10px; grid-template-columns: 1fr 2fr;">
@@ -1019,6 +1119,27 @@
       <select id="filter-drive" onchange="render()"><option value="">全部硬碟</option></select>
     </div>
 
+    <!-- Bulk action toolbar (visible when ≥1 row selected) -->
+    <div class="bulk-toolbar" id="bulk-toolbar" style="display:none">
+      <div class="bulk-toolbar-info">
+        已選 <strong id="bulk-count">0</strong> 筆
+      </div>
+      <div class="bulk-toolbar-actions">
+        <div class="bulk-action-group">
+          <label>改硬碟</label>
+          <select id="bulk-drive-pick"></select>
+          <button onclick="bulkChangeDrive()">套用</button>
+        </div>
+        <div class="bulk-action-group">
+          <label>改客戶</label>
+          <select id="bulk-client-pick"></select>
+          <button onclick="bulkChangeClient()">套用</button>
+        </div>
+        <button class="danger" onclick="bulkDelete()">✕ 刪除</button>
+        <button class="ghost" onclick="clearBulkSelection()">取消選取</button>
+      </div>
+    </div>
+
     <div class="table-wrap" id="table-wrap"></div>
   </section>
 
@@ -1031,10 +1152,8 @@
     <div class="drive-grid" id="drive-mgmt"></div>
   </section>
 
-  <!-- BY DRIVE -->
+  <!-- BY DRIVE → 客戶用量拆解 -->
   <section id="view-byDrive" class="hidden">
-    <div class="drive-grid" id="by-drive"></div>
-
     <!-- Client breakdown for a selected drive -->
     <div class="bc-block" id="bc-block" style="display:none">
       <div class="bc-head">
@@ -1049,6 +1168,7 @@
       </div>
       <div id="bc-result"></div>
     </div>
+    <div class="empty" id="by-drive-empty" style="display:none">尚無硬碟</div>
   </section>
 
 </div>
@@ -1263,6 +1383,9 @@ function toggleTheme(){
 }
 
 /* ---------- records ---------- */
+// Track which record we're currently editing (null = creating new)
+let editingId = null;
+
 function addRecord(){
   const company = selectedCompany;
   const project = document.getElementById("f-project").value.trim();
@@ -1272,8 +1395,34 @@ function addRecord(){
   const note = document.getElementById("f-note").value.trim();
   if(!project){ toast("⚠️ 請至少填寫案件名稱"); document.getElementById("f-project").focus(); return; }
   if(!driveId){ toast("⚠️ 請先到「硬碟管理」新增硬碟"); return; }
-  state.records.push({ id: uid(), company, project, driveId, date, size, note, createdAt: Date.now() });
   if(company && !state.clients.includes(company)) state.clients.push(company);
+
+  if(editingId){
+    // UPDATE mode — preserve original id + createdAt
+    const idx = state.records.findIndex(r => r.id === editingId);
+    if(idx >= 0){
+      const original = state.records[idx];
+      state.records[idx] = {
+        ...original,
+        company, project, driveId, date, size, note,
+        updatedAt: Date.now()
+      };
+    }
+    editingId = null;
+    save();
+    document.getElementById("f-project").value = "";
+    document.getElementById("f-size").value = "";
+    document.getElementById("f-note").value = "";
+    selectedCompany = "";
+    renderClientChips && renderClientChips();
+    refreshAll();
+    updateSubmitButton();
+    toast("✓ 已更新");
+    return;
+  }
+
+  // CREATE mode
+  state.records.push({ id: uid(), company, project, driveId, date, size, note, createdAt: Date.now() });
   save();
   // keep drive + date + selected client, clear the rest for fast repeated entry
   document.getElementById("f-project").value = "";
@@ -1283,12 +1432,16 @@ function addRecord(){
   refreshAll();
   toast("✓ 已新增備份紀錄");
 }
+
 function deleteRecord(id){
   const r = state.records.find(x=>x.id===id);
   if(!confirm("刪除這筆紀錄？\n"+(r?r.project:""))) return;
   state.records = state.records.filter(x=>x.id!==id);
+  // If we were editing this record, cancel edit mode
+  if(editingId === id){ editingId = null; updateSubmitButton(); }
   save(); refreshAll(); toast("已刪除");
 }
+
 function editRecord(id){
   const r = state.records.find(x=>x.id===id); if(!r) return;
   selectedCompany = r.company || "";
@@ -1298,10 +1451,41 @@ function editRecord(id){
   document.getElementById("f-date").value = r.date;
   document.getElementById("f-size").value = r.size || "";
   document.getElementById("f-note").value = r.note || "";
-  state.records = state.records.filter(x=>x.id!==id);
-  save(); refreshAll();
+  editingId = id;
+  renderClientChips && renderClientChips();
+  updateSubmitButton();
   window.scrollTo({top:0,behavior:"smooth"});
-  toast("已載入到表單，修改後按新增即可");
+  toast("已載入到表單,修改完按「更新」");
+}
+
+function cancelEdit(){
+  editingId = null;
+  document.getElementById("f-project").value = "";
+  document.getElementById("f-size").value = "";
+  document.getElementById("f-note").value = "";
+  selectedCompany = "";
+  renderClientChips && renderClientChips();
+  updateSubmitButton();
+  toast("已取消編輯");
+}
+
+// Switch the submit button between "新增" and "更新" based on editingId
+function updateSubmitButton(){
+  const btn = document.getElementById('submit-btn');
+  if(!btn) return;
+  const cancelBtn = document.getElementById('cancel-edit-btn');
+  const formTitle = document.getElementById('form-title');
+  if(editingId){
+    btn.innerHTML = "✎ 更新";
+    btn.classList.add('edit-mode');
+    if(cancelBtn) cancelBtn.style.display = '';
+    if(formTitle) formTitle.textContent = '編輯這筆紀錄';
+  } else {
+    btn.innerHTML = "＋ 新增";
+    btn.classList.remove('edit-mode');
+    if(cancelBtn) cancelBtn.style.display = 'none';
+    if(formTitle) formTitle.textContent = '新增一筆備份';
+  }
 }
 function setSort(key){
   if(sortKey===key) sortDir*=-1; else { sortKey=key; sortDir=1; }
@@ -1328,15 +1512,115 @@ function getFiltered(){
 
 function arrow(key){ return sortKey===key ? `<span class="arrow">${sortDir>0?"▲":"▼"}</span>` : ""; }
 
+// Bulk selection state — ids of records currently checked
+let bulkSelected = new Set();
+
+function toggleBulkSelect(id, checked){
+  if(checked) bulkSelected.add(id); else bulkSelected.delete(id);
+  updateBulkToolbar();
+  // Update row highlight
+  document.querySelectorAll(`tr[data-rec-id="${id}"], .rec-card[data-rec-id="${id}"]`)
+    .forEach(el => el.classList.toggle('bulk-selected', checked));
+}
+
+function toggleBulkSelectAll(checked){
+  const rows = getFiltered();
+  if(checked){
+    rows.forEach(r => bulkSelected.add(r.id));
+  } else {
+    rows.forEach(r => bulkSelected.delete(r.id));
+  }
+  render();  // re-render to sync checkboxes
+}
+
+function clearBulkSelection(){
+  bulkSelected.clear();
+  render();
+}
+
+function updateBulkToolbar(){
+  const toolbar = document.getElementById('bulk-toolbar');
+  if(!toolbar) return;
+  const count = bulkSelected.size;
+  if(count === 0){
+    toolbar.style.display = 'none';
+  } else {
+    toolbar.style.display = '';
+    const countEl = document.getElementById('bulk-count');
+    if(countEl) countEl.textContent = count;
+  }
+}
+
+function bulkChangeDrive(){
+  if(bulkSelected.size === 0) return;
+  const driveId = document.getElementById('bulk-drive-pick').value;
+  if(!driveId) return;
+  const drive = driveById(driveId);
+  if(!drive) return;
+  if(!confirm(`將選取的 ${bulkSelected.size} 筆紀錄改到「${drive.name}」?`)) return;
+  let changed = 0;
+  state.records.forEach(r => {
+    if(bulkSelected.has(r.id)){
+      r.driveId = driveId;
+      r.updatedAt = Date.now();
+      changed++;
+    }
+  });
+  bulkSelected.clear();
+  save();
+  refreshAll();
+  toast(`✓ 已將 ${changed} 筆改到「${drive.name}」`);
+}
+
+function bulkChangeClient(){
+  if(bulkSelected.size === 0) return;
+  const company = document.getElementById('bulk-client-pick').value;
+  if(company === '__keep__') return;  // sentinel "do nothing"
+  const label = company || '(無客戶)';
+  if(!confirm(`將選取的 ${bulkSelected.size} 筆紀錄客戶改為「${label}」?`)) return;
+  let changed = 0;
+  state.records.forEach(r => {
+    if(bulkSelected.has(r.id)){
+      r.company = company;
+      r.updatedAt = Date.now();
+      changed++;
+    }
+  });
+  if(company && !state.clients.includes(company)) state.clients.push(company);
+  bulkSelected.clear();
+  save();
+  refreshAll();
+  toast(`✓ 已將 ${changed} 筆改為「${label}」`);
+}
+
+function bulkDelete(){
+  if(bulkSelected.size === 0) return;
+  if(!confirm(`確定要刪除選取的 ${bulkSelected.size} 筆紀錄?\n此動作無法復原。`)) return;
+  const count = bulkSelected.size;
+  state.records = state.records.filter(r => !bulkSelected.has(r.id));
+  bulkSelected.clear();
+  save();
+  refreshAll();
+  toast(`✓ 已刪除 ${count} 筆`);
+}
+
 function render(){
   const rows = getFiltered();
   const wrap = document.getElementById("table-wrap");
   if(state.records.length===0){
     wrap.innerHTML = `<div class="empty"><div class="big">🗄️</div>還沒有任何備份紀錄。<br>在上面填一筆，按「新增」開始。</div>`;
-    renderStats(); return;
+    renderStats(); updateBulkToolbar(); return;
   }
-  if(rows.length===0){ wrap.innerHTML = `<div class="empty">沒有符合條件的紀錄。</div>`; renderStats(); return; }
+  if(rows.length===0){ wrap.innerHTML = `<div class="empty">沒有符合條件的紀錄。</div>`; renderStats(); updateBulkToolbar(); return; }
+
+  // Clean up bulkSelected — remove ids no longer in filtered set (so toolbar count stays accurate)
+  // Actually: keep selected even if filtered out, so user can switch filters mid-selection
+  // But still update toolbar
+  const filteredIds = new Set(rows.map(r => r.id));
+  const allFilteredSelected = rows.length > 0 && rows.every(r => bulkSelected.has(r.id));
+
   let html = `<table><thead><tr>
+    <th class="col-bulk"><input type="checkbox" id="bulk-select-all" ${allFilteredSelected?'checked':''} onchange="toggleBulkSelectAll(this.checked)" title="全選/全不選"></th>
     <th onclick="setSort('date')">日期 ${arrow("date")}</th>
     <th onclick="setSort('company')">公司 ${arrow("company")}</th>
     <th onclick="setSort('project')">案件名稱 ${arrow("project")}</th>
@@ -1345,7 +1629,9 @@ function render(){
   </tr></thead><tbody>`;
   for(const r of rows){
     const d = driveById(r.driveId) || {name:"(已刪除)", color:"#999"};
-    html += `<tr>
+    const checked = bulkSelected.has(r.id);
+    html += `<tr data-rec-id="${r.id}" class="${checked?'bulk-selected':''}">
+      <td class="col-bulk"><input type="checkbox" ${checked?'checked':''} onchange="toggleBulkSelect('${r.id}', this.checked)"></td>
       <td class="col-date">${esc(r.date)}</td>
       <td>${esc(r.company)||'<span style="color:var(--faint)">—</span>'}</td>
       <td class="col-proj">${esc(r.project)}</td>
@@ -1364,8 +1650,10 @@ function render(){
   let cards = `<div class="mobile-cards">`;
   for(const r of rows){
     const d = driveById(r.driveId) || {name:"(已刪除)", color:"#999"};
-    cards += `<div class="rec-card">
+    const checked = bulkSelected.has(r.id);
+    cards += `<div class="rec-card ${checked?'bulk-selected':''}" data-rec-id="${r.id}">
       <div class="rec-card-top">
+        <label class="rec-card-check"><input type="checkbox" ${checked?'checked':''} onchange="toggleBulkSelect('${r.id}', this.checked)"> 選</label>
         <div class="rec-card-title">${esc(r.project)||'(未命名)'}</div>
         <div class="rec-card-date">${esc(r.date)}</div>
       </div>
@@ -1386,6 +1674,22 @@ function render(){
 
   wrap.innerHTML = html + cards;
   renderStats();
+  updateBulkToolbar();
+  // Populate bulk drive picker if visible
+  if(bulkSelected.size > 0) populateBulkPickers();
+}
+
+function populateBulkPickers(){
+  const drivePick = document.getElementById('bulk-drive-pick');
+  if(drivePick){
+    drivePick.innerHTML = '<option value="">選硬碟…</option>' +
+      state.drives.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  }
+  const clientPick = document.getElementById('bulk-client-pick');
+  if(clientPick){
+    clientPick.innerHTML = '<option value="__keep__">選客戶…</option><option value="">(清空客戶)</option>' +
+      state.clients.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  }
 }
 
 function renderStats(){
@@ -1608,51 +1912,15 @@ function findDuplicatesOnDrive(driveId){
 
 /* ---------- by drive view ---------- */
 function renderByDrive(){
-  const el = document.getElementById("by-drive");
+  const emptyEl = document.getElementById("by-drive-empty");
+  const bcBlock = document.getElementById('bc-block');
   if(state.drives.length===0){
-    el.innerHTML = `<div class="empty">尚無硬碟。</div>`;
-    document.getElementById('bc-block').style.display = 'none';
+    if(emptyEl) emptyEl.style.display = '';
+    bcBlock.style.display = 'none';
     return;
   }
-  el.innerHTML = state.drives.map(d=>{
-    const recs = state.records.filter(r=>r.driveId===d.id).sort((a,b)=>b.date<a.date?-1:1);
-    const items = recs.length ? recs.map(r=>
-      `<li><span>${esc(r.project)}${r.size?` <span class="co">(${esc(r.size)})</span>`:""}</span><span class="co">${esc(r.company)} · ${esc(r.date)}</span></li>`
-    ).join("") : `<li style="color:var(--faint);border:none">(尚無資料)</li>`;
-    // Duplicate warning banner
-    const dupes = findDuplicatesOnDrive(d.id);
-    let dupBanner = '';
-    if(dupes.strict.length > 0 || dupes.loose.length > 0){
-      const sc = dupes.strict.length, lc = dupes.loose.length;
-      let label = '';
-      let cls = '';
-      if(sc > 0 && lc > 0){
-        label = `⚠ ${sc} 個重複專案 · ${lc} 個跨客戶同名`;
-        cls = 'dup-banner-strict';
-      } else if(sc > 0){
-        label = `⚠ ${sc} 個重複專案 (同客戶同名)`;
-        cls = 'dup-banner-strict';
-      } else {
-        label = `💡 ${lc} 個跨客戶同名專案`;
-        cls = 'dup-banner-loose';
-      }
-      dupBanner = `<div class="dup-banner ${cls}" onclick="toggleDupDetails('${d.id}')" data-drive="${d.id}">
-        <div class="dup-banner-text">${label}</div>
-        <div class="dup-banner-chev">▼</div>
-      </div>
-      <div class="dup-details" id="dup-details-${d.id}" style="display:none">${renderDuplicateGroups(dupes)}</div>`;
-    }
-    return `<div class="drive-card">
-      <div class="dc-head"><span class="dot" style="background:${d.color};width:12px;height:12px"></span>
-        <span class="dc-name">${esc(d.name)}</span></div>
-      <div class="dc-meta">${recs.length} 筆${d.note?" · "+esc(d.note):""}</div>
-      ${dupBanner}
-      ${capBlock(d.id)}
-      <ul class="dc-list">${items}</ul>
-    </div>`;
-  }).join("");
-
-  // Populate breakdown drive picker + initial render
+  if(emptyEl) emptyEl.style.display = 'none';
+  // Populate drive picker + render breakdown (which now includes duplicate banner)
   renderByClientPicker();
   renderByClientBreakdown();
 }
@@ -1861,7 +2129,24 @@ function renderByClientBreakdown(){
     ? `<div class="bc-unparsed-note">⚠ 有 ${unparsedTotal} 筆紀錄的大小欄位無法辨識,未列入計算</div>`
     : '';
 
+  // Duplicate warning banner for THIS drive
+  const dupes = findDuplicatesOnDrive(driveId);
+  let dupBannerHtml = '';
+  if(dupes.strict.length > 0 || dupes.loose.length > 0){
+    const sc = dupes.strict.length, lc = dupes.loose.length;
+    let label = '', cls = '';
+    if(sc > 0 && lc > 0){ label = `⚠ ${sc} 個重複專案 · ${lc} 個跨客戶同名`; cls = 'dup-banner-strict'; }
+    else if(sc > 0){ label = `⚠ ${sc} 個重複專案 (同客戶同名)`; cls = 'dup-banner-strict'; }
+    else { label = `💡 ${lc} 個跨客戶同名專案`; cls = 'dup-banner-loose'; }
+    dupBannerHtml = `<div class="dup-banner ${cls}" onclick="toggleDupDetails('${driveId}')" data-drive="${driveId}">
+      <div class="dup-banner-text">${label}</div>
+      <div class="dup-banner-chev">▼</div>
+    </div>
+    <div class="dup-details" id="dup-details-${driveId}" style="display:none">${renderDuplicateGroups(dupes)}</div>`;
+  }
+
   result.innerHTML = `
+    ${dupBannerHtml}
     <div class="bc-totals">${totalsHtml}</div>
     <div class="bc-list">${listHtml}</div>
     ${unparsedNote}
