@@ -139,6 +139,163 @@
   .add-grid.grid4 { grid-template-columns: 1.6fr 1fr .8fr auto; }
   @media (max-width: 820px){ .add-grid, .add-grid.grid4 { grid-template-columns: 1fr 1fr; } }
 
+  /* Client breakdown block (依硬碟檢視 底部) */
+  .bc-block {
+    margin-top: 22px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+  }
+  .bc-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .bc-title {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .bc-sub {
+    font-size: 10px;
+    color: var(--faint);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .bc-pick-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bc-pick-wrap label {
+    font-size: 10px;
+    color: var(--faint);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .bc-pick-wrap select {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: var(--sans);
+    min-width: 180px;
+    cursor: pointer;
+  }
+  .bc-pick-wrap select:focus { outline: none; border-color: var(--accent); }
+  .bc-totals {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .bc-totals .total-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .bc-totals .total-item .l {
+    font-size: 10px;
+    color: var(--faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .bc-totals .total-item .n {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .bc-totals .total-item .n.accent { color: var(--accent); }
+  .bc-totals .total-item .n.warn { color: var(--danger); }
+
+  .bc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .bc-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    transition: border-color 0.12s;
+  }
+  .bc-row:hover { border-color: var(--accent); }
+  .bc-row .name {
+    color: var(--ink);
+    font-size: 13.5px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bc-row .count {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+  .bc-row .size {
+    font-family: var(--mono);
+    font-feature-settings: "tnum";
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 500;
+    text-align: right;
+    min-width: 90px;
+  }
+  .bc-row .size-bar {
+    grid-column: 1 / -1;
+    height: 3px;
+    background: var(--surface);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .bc-row .size-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    opacity: 0.6;
+    border-radius: 2px;
+  }
+  .bc-empty {
+    padding: 30px 14px;
+    text-align: center;
+    color: var(--faint);
+    font-size: 13px;
+  }
+  .bc-unparsed-note {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--faint);
+    line-height: 1.5;
+    text-align: center;
+  }
+
   /* ============ MOBILE LAYOUT ============ */
   @media (max-width: 720px) {
     /* Header reflow */
@@ -270,6 +427,11 @@
 
     /* By-drive view (依硬碟檢視) */
     .by-drive-section { padding: 14px !important; }
+
+    /* Mobile: stack breakdown header */
+    .bc-head { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
+    .bc-pick-wrap { width: 100%; }
+    .bc-pick-wrap select { width: 100% !important; }
 
     /* Stats panel: 4 columns on mobile, compact spacing */
     .stats {
@@ -723,6 +885,21 @@
   <!-- BY DRIVE -->
   <section id="view-byDrive" class="hidden">
     <div class="drive-grid" id="by-drive"></div>
+
+    <!-- Client breakdown for a selected drive -->
+    <div class="bc-block" id="bc-block" style="display:none">
+      <div class="bc-head">
+        <div>
+          <div class="bc-title">客戶用量拆解</div>
+          <div class="bc-sub">CLIENT · SIZE · BREAKDOWN</div>
+        </div>
+        <div class="bc-pick-wrap">
+          <label for="bc-drive-pick">選硬碟</label>
+          <select id="bc-drive-pick" onchange="renderByClientBreakdown()"></select>
+        </div>
+      </div>
+      <div id="bc-result"></div>
+    </div>
   </section>
 
 </div>
@@ -1250,12 +1427,16 @@ function deleteDrive(id){
 /* ---------- by drive view ---------- */
 function renderByDrive(){
   const el = document.getElementById("by-drive");
-  if(state.drives.length===0){ el.innerHTML = `<div class="empty">尚無硬碟。</div>`; return; }
+  if(state.drives.length===0){
+    el.innerHTML = `<div class="empty">尚無硬碟。</div>`;
+    document.getElementById('bc-block').style.display = 'none';
+    return;
+  }
   el.innerHTML = state.drives.map(d=>{
     const recs = state.records.filter(r=>r.driveId===d.id).sort((a,b)=>b.date<a.date?-1:1);
     const items = recs.length ? recs.map(r=>
       `<li><span>${esc(r.project)}${r.size?` <span class="co">(${esc(r.size)})</span>`:""}</span><span class="co">${esc(r.company)} · ${esc(r.date)}</span></li>`
-    ).join("") : `<li style="color:var(--faint);border:none">（尚無資料）</li>`;
+    ).join("") : `<li style="color:var(--faint);border:none">(尚無資料)</li>`;
     return `<div class="drive-card">
       <div class="dc-head"><span class="dot" style="background:${d.color};width:12px;height:12px"></span>
         <span class="dc-name">${esc(d.name)}</span></div>
@@ -1264,6 +1445,106 @@ function renderByDrive(){
       <ul class="dc-list">${items}</ul>
     </div>`;
   }).join("");
+
+  // Populate breakdown drive picker + initial render
+  renderByClientPicker();
+  renderByClientBreakdown();
+}
+
+function renderByClientPicker(){
+  const block = document.getElementById('bc-block');
+  const pick = document.getElementById('bc-drive-pick');
+  if(!pick || !block) return;
+  if(state.drives.length === 0){ block.style.display = 'none'; return; }
+  block.style.display = '';
+  const prev = pick.value;
+  pick.innerHTML = state.drives.map(d =>
+    `<option value="${d.id}">${esc(d.name)}</option>`
+  ).join('');
+  // Preserve selection if still valid; otherwise pick the first drive
+  if(prev && state.drives.find(d=>d.id===prev)) pick.value = prev;
+}
+
+function renderByClientBreakdown(){
+  const result = document.getElementById('bc-result');
+  const pick = document.getElementById('bc-drive-pick');
+  if(!result || !pick) return;
+  const driveId = pick.value;
+  if(!driveId){ result.innerHTML = ''; return; }
+  const drive = driveById(driveId);
+
+  // Aggregate by company
+  const recs = state.records.filter(r => r.driveId === driveId);
+  if(recs.length === 0){
+    result.innerHTML = `<div class="bc-empty">此硬碟沒有任何備份紀錄</div>`;
+    return;
+  }
+  const byClient = {};
+  let unparsedTotal = 0;
+  let totalSize = 0;
+  recs.forEach(r => {
+    const key = r.company || '(未填客戶)';
+    if(!byClient[key]) byClient[key] = { name: key, totalGB: 0, count: 0, unparsedCount: 0 };
+    byClient[key].count++;
+    if(r.size){
+      const g = parseSize(r.size);
+      if(g == null){
+        byClient[key].unparsedCount++;
+        unparsedTotal++;
+      } else {
+        byClient[key].totalGB += g;
+        totalSize += g;
+      }
+    }
+  });
+
+  const sorted = Object.values(byClient).sort((a, b) => b.totalGB - a.totalGB);
+  const maxSize = sorted[0] ? sorted[0].totalGB : 0;
+
+  // Drive capacity comparison
+  const driveCap = drive ? parseSize(drive.cap) : null;
+  const driveUsage = state.records.filter(r => r.driveId === driveId).reduce((s, r) => {
+    if(!r.size) return s;
+    const g = parseSize(r.size);
+    return s + (g || 0);
+  }, 0);
+
+  let totalsHtml = '';
+  totalsHtml += `<div class="total-item"><span class="l">客戶數</span><span class="n">${sorted.length}</span></div>`;
+  totalsHtml += `<div class="total-item"><span class="l">紀錄筆數</span><span class="n">${recs.length}</span></div>`;
+  totalsHtml += `<div class="total-item"><span class="l">統計加總</span><span class="n accent">${fmtSize(totalSize)}</span></div>`;
+  if(driveCap != null){
+    totalsHtml += `<div class="total-item"><span class="l">硬碟容量</span><span class="n">${fmtSize(driveCap)}</span></div>`;
+    const diff = driveCap - totalSize;
+    if(diff > 0){
+      totalsHtml += `<div class="total-item"><span class="l">剩餘 (理論)</span><span class="n">${fmtSize(diff)}</span></div>`;
+    } else if(diff < 0){
+      totalsHtml += `<div class="total-item"><span class="l">超出容量</span><span class="n warn">${fmtSize(-diff)}</span></div>`;
+    }
+  }
+
+  const listHtml = sorted.map(c => {
+    const pct = maxSize > 0 ? (c.totalGB / maxSize) * 100 : 0;
+    const unparsedNote = c.unparsedCount > 0
+      ? `<span style="font-size:10px;color:var(--faint);margin-left:6px">(含 ${c.unparsedCount} 筆無大小)</span>`
+      : '';
+    return `<div class="bc-row">
+      <div class="name">${esc(c.name)}${unparsedNote}</div>
+      <div class="count">${c.count} 筆</div>
+      <div class="size">${fmtSize(c.totalGB)}</div>
+      <div class="size-bar"><div class="size-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+
+  const unparsedNote = unparsedTotal > 0
+    ? `<div class="bc-unparsed-note">⚠ 有 ${unparsedTotal} 筆紀錄的大小欄位無法辨識,未列入計算</div>`
+    : '';
+
+  result.innerHTML = `
+    <div class="bc-totals">${totalsHtml}</div>
+    <div class="bc-list">${listHtml}</div>
+    ${unparsedNote}
+  `;
 }
 
 /* ---------- backup badge + auto-backup ---------- */
