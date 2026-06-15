@@ -433,36 +433,96 @@
   }
   .scan-diff-section-head .toggle-all:hover { background: var(--accent-soft, rgba(212,160,92,0.15)); }
   .scan-diff-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
     background: var(--surface-2);
     border-radius: 6px;
     margin-bottom: 4px;
     border-left: 3px solid transparent;
-    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.12s;
   }
+  .scan-diff-row:hover { background: var(--surface); }
   .scan-diff-row.kind-add { border-left-color: #5e8a5e; }
   .scan-diff-row.kind-change { border-left-color: var(--accent); }
   .scan-diff-row.kind-remove { border-left-color: var(--danger); }
-  .scan-diff-row input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
-  .scan-diff-row .info { flex: 1; min-width: 0; }
-  .scan-diff-row .info .name {
-    font-size: 12.5px; font-weight: 500; color: var(--ink);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  .scan-diff-row input[type="checkbox"] {
+    cursor: pointer;
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin: 0;
   }
-  .scan-diff-row .info .meta {
-    margin-top: 2px; font-size: 11px; color: var(--muted);
-    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  /* Two-line body: top = project name + size, bottom = client + meta */
+  .scan-diff-row .row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
-  .scan-diff-row .info .meta .client { color: var(--ink); }
-  .scan-diff-row .size {
+  .scan-diff-row .row-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .scan-diff-row .row-top .proj {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+  .scan-diff-row .row-bottom {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 11px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .scan-diff-row .row-bottom .client { color: var(--ink); font-weight: 500; }
+  .scan-diff-row .row-bottom .files { font-family: var(--mono); }
+  .scan-diff-row .row-bottom .date { font-family: var(--mono); }
+  .scan-diff-row .row-bottom .delta-up { font-family: var(--mono); color: #c87f7f; }
+  .scan-diff-row .row-bottom .delta-down { font-family: var(--mono); color: #6a9c6a; }
+  /* Size displays in top-right of each row */
+  .scan-diff-row .size-new {
     font-family: var(--mono); font-feature-settings: "tnum";
-    font-size: 12px; color: var(--accent); white-space: nowrap;
-    text-align: right; min-width: 110px;
+    font-size: 13px; color: var(--accent); white-space: nowrap;
+    flex-shrink: 0;
   }
-  .scan-diff-row .size .old { color: var(--faint); text-decoration: line-through; margin-right: 4px; }
-  .scan-diff-row .size .new { color: var(--accent); }
-  .scan-diff-row .size .delta { font-size: 10px; color: var(--muted); margin-left: 4px; }
+  .scan-diff-row .size-old-plain {
+    font-family: var(--mono); font-feature-settings: "tnum";
+    font-size: 12.5px; color: var(--faint); white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .scan-diff-row .size-pair {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .scan-diff-row .size-pair .size-old {
+    font-family: var(--mono); font-feature-settings: "tnum";
+    font-size: 11.5px;
+    color: var(--faint);
+    text-decoration: line-through;
+  }
+  .scan-diff-row .size-pair .size-arrow { color: var(--faint); font-size: 11px; }
+  .scan-diff-row .size-pair .size-new {
+    font-family: var(--mono); font-feature-settings: "tnum";
+    font-size: 13px;
+    color: var(--accent);
+  }
   .scan-diff-actions { padding-top: 8px; border-top: 1px solid var(--border); }
   .scan-diff-empty {
     padding: 30px 14px;
@@ -2180,14 +2240,17 @@ async function beginScan(){
   scanState.size = 0;
   scanState.current = '準備中…';
   scanState.results = [];
+  scanState.errorCount = 0;
+  scanState.firstError = null;
   updateScanProgress();
 
+  let catastrophicError = null;
   try {
     await scanDriveRoot(scanState.rootHandle);
   } catch(err){
     if(!scanState.abortFlag){
       console.error('Scan error', err);
-      toast('掃描錯誤:'+err.message);
+      catastrophicError = err;
     }
   }
   scanState.active = false;
@@ -2196,9 +2259,27 @@ async function beginScan(){
     toast('掃描已中止');
     return;
   }
+
+  // SAFETY CHECK: scan must actually produce results before showing a diff.
+  // Without this, a scan that fails immediately would show "all existing records
+  // → delete" — and one wrong click could wipe the entire ledger for this drive.
+  if(scanState.results.length === 0){
+    const errMsg = catastrophicError
+      ? catastrophicError.message
+      : (scanState.firstError ? scanState.firstError.err.message : '未知原因');
+    alert(`掃描失敗,沒有讀到任何案件資料夾。\n\n可能原因:\n• 資料夾結構不符 (沒有客戶/案件兩層)\n• 硬碟上的檔案系統不允許讀取 (例如 iCloud 上的雲端檔)\n• 選錯資料夾了\n\n第一個錯誤:${errMsg}\n\n為了安全,不會顯示變更建議。請檢查資料夾結構後再試。`);
+    return;
+  }
+
   // Compute diff and show
   scanState.diff = computeScanDiff(scanState.results, scanState.driveId);
   showScanDiff();
+  // Warn about partial scan errors (non-fatal — some files couldn't be read)
+  if(scanState.errorCount > 0){
+    setTimeout(() => {
+      toast(`⚠ 掃描期間有 ${scanState.errorCount} 個檔案讀取失敗 (已跳過)`);
+    }, 800);
+  }
 }
 
 function abortScan(){
@@ -2208,40 +2289,59 @@ function abortScan(){
 }
 
 async function scanDriveRoot(rootHandle){
-  for await (const topEntry of rootHandle.values()){
-    if(scanState.abortFlag) return;
-    if(topEntry.kind !== 'directory') continue;
-    if(topEntry.name === SCAN_CLASSIFIER){
-      // Two-level scan: client → project
-      for await (const clientEntry of topEntry.values()){
-        if(scanState.abortFlag) return;
-        if(clientEntry.kind !== 'directory') continue;
-        scanState.clients++;
-        for await (const projEntry of clientEntry.values()){
-          if(scanState.abortFlag) return;
-          if(projEntry.kind !== 'directory') continue;
-          await scanOneProject(projEntry, clientEntry.name, projEntry.name);
+  // Track errors so we can warn the user, but don't abort the whole scan
+  scanState.errorCount = 0;
+  scanState.firstError = null;
+  try {
+    for await (const topEntry of rootHandle.values()){
+      if(scanState.abortFlag) return;
+      if(topEntry.kind !== 'directory') continue;
+      try {
+        if(topEntry.name === SCAN_CLASSIFIER){
+          // Two-level scan: client → project
+          for await (const clientEntry of topEntry.values()){
+            if(scanState.abortFlag) return;
+            if(clientEntry.kind !== 'directory') continue;
+            scanState.clients++;
+            try {
+              for await (const projEntry of clientEntry.values()){
+                if(scanState.abortFlag) return;
+                if(projEntry.kind !== 'directory') continue;
+                await scanOneProject(projEntry, clientEntry.name, projEntry.name);
+              }
+            } catch(err){ recordScanError(err, `${SCAN_CLASSIFIER}/${clientEntry.name}`); }
+          }
+        } else {
+          // One-level scan: top folder name is the "client"
+          scanState.clients++;
+          for await (const projEntry of topEntry.values()){
+            if(scanState.abortFlag) return;
+            if(projEntry.kind !== 'directory') continue;
+            await scanOneProject(projEntry, topEntry.name, projEntry.name);
+          }
         }
-      }
-    } else {
-      // One-level scan: top folder name is the "client"
-      scanState.clients++;
-      for await (const projEntry of topEntry.values()){
-        if(scanState.abortFlag) return;
-        if(projEntry.kind !== 'directory') continue;
-        await scanOneProject(projEntry, topEntry.name, projEntry.name);
-      }
+      } catch(err){ recordScanError(err, topEntry.name); }
     }
-  }
+  } catch(err){ recordScanError(err, '<root>'); throw err; }
+}
+
+function recordScanError(err, context){
+  scanState.errorCount = (scanState.errorCount||0) + 1;
+  if(!scanState.firstError){ scanState.firstError = {err, context}; }
+  console.warn('Scan error at', context, err);
 }
 
 async function scanOneProject(handle, clientName, projectName){
   scanState.projects++;
   scanState.current = `${clientName} / ${projectName}`;
   updateScanProgress();
-  // Recursively sum file sizes
+  // Recursively sum file sizes — wrapped so a problematic project doesn't kill the scan
   const stats = {size: 0, files: 0};
-  await sumFolder(handle, stats);
+  try {
+    await sumFolder(handle, stats);
+  } catch(err){
+    recordScanError(err, `${clientName}/${projectName}`);
+  }
   if(scanState.abortFlag) return;
   scanState.results.push({
     client: clientName,
@@ -2250,32 +2350,41 @@ async function scanOneProject(handle, clientName, projectName){
     sizeGB: stats.size / (1024*1024*1024),
     fileCount: stats.files
   });
-  // Update accumulated stats after finishing a project
   updateScanProgress();
 }
 
 async function sumFolder(handle, stats){
-  for await (const entry of handle.values()){
-    if(scanState.abortFlag) return;
-    if(entry.kind === 'file'){
-      try {
-        const file = await entry.getFile();
-        stats.files++;
-        stats.size += file.size;
-        scanState.files++;
-        scanState.size += file.size;
-        // Throttle UI updates to every 200 files
-        if(scanState.files % 200 === 0){
-          updateScanProgress();
-          // Let the UI render
-          await new Promise(r => setTimeout(r, 0));
+  let iterError = false;
+  try {
+    for await (const entry of handle.values()){
+      if(scanState.abortFlag) return;
+      if(entry.kind === 'file'){
+        try {
+          const file = await entry.getFile();
+          stats.files++;
+          stats.size += file.size;
+          scanState.files++;
+          scanState.size += file.size;
+          if(scanState.files % 200 === 0){
+            updateScanProgress();
+            await new Promise(r => setTimeout(r, 0));
+          }
+        } catch(err){
+          // Skip unreadable file (iCloud offload, locked, special, etc.)
+          recordScanError(err, 'file in '+handle.name);
         }
-      } catch(err){
-        // Skip unreadable files (e.g. .DS_Store on macOS sometimes)
+      } else if(entry.kind === 'directory'){
+        try {
+          await sumFolder(entry, stats);
+        } catch(err){
+          recordScanError(err, 'subdir of '+handle.name);
+        }
       }
-    } else if(entry.kind === 'directory'){
-      await sumFolder(entry, stats);
     }
+  } catch(err){
+    // Iteration itself failed
+    iterError = true;
+    recordScanError(err, 'iterating '+handle.name);
   }
 }
 
@@ -2356,14 +2465,19 @@ function showScanDiff(){
         </div>`;
       d.added.forEach((item, i) => {
         const s = item.scanned;
-        html += `<div class="scan-diff-row kind-add">
+        html += `<label class="scan-diff-row kind-add">
           <input type="checkbox" checked data-kind="add" data-idx="${i}">
-          <div class="info">
-            <div class="name">${esc(s.project)}</div>
-            <div class="meta"><span class="client">${esc(s.client)}</span><span>${s.fileCount.toLocaleString('en-US')} 檔</span></div>
+          <div class="row-body">
+            <div class="row-top">
+              <span class="proj">${esc(s.project)}</span>
+              <span class="size-new">${gbToSizeStr(s.sizeGB)}</span>
+            </div>
+            <div class="row-bottom">
+              <span class="client">${esc(s.client)}</span>
+              <span class="files">${s.fileCount.toLocaleString('en-US')} 檔</span>
+            </div>
           </div>
-          <div class="size"><span class="new">${gbToSizeStr(s.sizeGB)}</span></div>
-        </div>`;
+        </label>`;
       });
       html += `</div>`;
     }
@@ -2377,18 +2491,25 @@ function showScanDiff(){
       d.changed.forEach((item, i) => {
         const s = item.scanned, e = item.existing;
         const sign = item.diff >= 0 ? '+' : '';
-        html += `<div class="scan-diff-row kind-change">
+        const deltaCls = item.diff >= 0 ? 'delta-up' : 'delta-down';
+        html += `<label class="scan-diff-row kind-change">
           <input type="checkbox" checked data-kind="change" data-idx="${i}">
-          <div class="info">
-            <div class="name">${esc(s.project)}</div>
-            <div class="meta"><span class="client">${esc(s.client)}</span><span>${s.fileCount.toLocaleString('en-US')} 檔</span></div>
+          <div class="row-body">
+            <div class="row-top">
+              <span class="proj">${esc(s.project)}</span>
+              <span class="size-pair">
+                <span class="size-old">${esc(e.size || '—')}</span>
+                <span class="size-arrow">→</span>
+                <span class="size-new">${gbToSizeStr(s.sizeGB)}</span>
+              </span>
+            </div>
+            <div class="row-bottom">
+              <span class="client">${esc(s.client)}</span>
+              <span class="files">${s.fileCount.toLocaleString('en-US')} 檔</span>
+              <span class="${deltaCls}">${sign}${item.diff.toFixed(2)} GB</span>
+            </div>
           </div>
-          <div class="size">
-            <span class="old">${esc(e.size || '—')}</span>
-            <span class="new">${gbToSizeStr(s.sizeGB)}</span>
-            <div class="delta">${sign}${item.diff.toFixed(2)} GB</div>
-          </div>
-        </div>`;
+        </label>`;
       });
       html += `</div>`;
     }
@@ -2401,14 +2522,19 @@ function showScanDiff(){
         </div>`;
       d.removed.forEach((item, i) => {
         const e = item.existing;
-        html += `<div class="scan-diff-row kind-remove">
+        html += `<label class="scan-diff-row kind-remove">
           <input type="checkbox" data-kind="remove" data-idx="${i}">
-          <div class="info">
-            <div class="name">${esc(e.project)}</div>
-            <div class="meta"><span class="client">${esc(e.company || '(無客戶)')}</span><span>${esc(e.date)}</span></div>
+          <div class="row-body">
+            <div class="row-top">
+              <span class="proj">${esc(e.project)}</span>
+              <span class="size-old-plain">${esc(e.size || '—')}</span>
+            </div>
+            <div class="row-bottom">
+              <span class="client">${esc(e.company || '(無客戶)')}</span>
+              <span class="date">${esc(e.date)}</span>
+            </div>
           </div>
-          <div class="size"><span class="old" style="text-decoration:none">${esc(e.size || '—')}</span></div>
-        </div>`;
+        </label>`;
       });
       html += `<div style="margin-top:8px;font-size:11px;color:var(--faint);line-height:1.5;padding:0 4px">
         ⚠ 預設不勾選 — 可能是真的被刪了、改名了,或單純這次沒掃到的位置。勾選後會從清單刪除這些紀錄。
