@@ -298,6 +298,179 @@
     text-align: center;
   }
 
+  /* Scan progress modal */
+  .scan-progress-body { padding: 8px 0 18px; }
+  .scan-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .scan-stat {
+    padding: 10px 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-align: center;
+  }
+  .scan-stat .l { display: block; font-size: 10px; color: var(--faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .scan-stat .n { display: block; font-family: var(--mono); font-feature-settings: "tnum"; font-size: 16px; font-weight: 500; color: var(--ink); margin-top: 4px; }
+  .scan-stat .n.accent { color: var(--accent); }
+  .scan-current {
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 14px;
+  }
+  .scan-spinner-row { display: flex; gap: 10px; align-items: center; }
+  .scan-spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: scan-spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes scan-spin { to { transform: rotate(360deg); } }
+  .scan-hint { font-size: 11px; color: var(--faint); line-height: 1.5; }
+
+  #scan-confirm-content .scan-conf-row {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12.5px;
+  }
+  #scan-confirm-content .scan-conf-row .label { color: var(--ink); }
+  #scan-confirm-content .scan-conf-row .tag {
+    font-size: 10.5px;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+  #scan-confirm-content .scan-conf-row .tag.two { color: var(--accent); border-color: var(--accent); }
+  #scan-confirm-content .scan-conf-hint {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* Scan diff modal */
+  .scan-diff-modal {
+    max-width: 720px !important;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .modal-close {
+    background: transparent; border: none; color: var(--muted);
+    font-size: 22px; line-height: 1; padding: 0;
+    cursor: pointer; width: 28px; height: 28px;
+    border-radius: 6px;
+  }
+  .modal-close:hover { background: var(--surface-2); color: var(--ink); }
+  .scan-diff-summary {
+    display: flex;
+    gap: 14px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .scan-diff-summary .summary-item { display: flex; flex-direction: column; gap: 2px; }
+  .scan-diff-summary .summary-item .l { font-size: 10px; color: var(--faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .scan-diff-summary .summary-item .n { font-family: var(--mono); font-size: 16px; font-weight: 500; }
+  .scan-diff-summary .summary-item .n.added { color: var(--success, #5e8a5e); }
+  .scan-diff-summary .summary-item .n.changed { color: var(--accent); }
+  .scan-diff-summary .summary-item .n.removed { color: var(--danger); }
+  .scan-diff-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+    margin-bottom: 14px;
+  }
+  .scan-diff-section { margin-bottom: 18px; }
+  .scan-diff-section:last-child { margin-bottom: 0; }
+  .scan-diff-section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .scan-diff-section-head .title { font-size: 13px; font-weight: 500; color: var(--ink); }
+  .scan-diff-section-head .count {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    background: var(--surface-2); padding: 2px 8px; border-radius: 999px;
+  }
+  .scan-diff-section-head .toggle-all {
+    margin-left: auto;
+    font-size: 11px; color: var(--accent); cursor: pointer;
+    background: transparent; border: none; padding: 4px 8px;
+    border-radius: 5px;
+  }
+  .scan-diff-section-head .toggle-all:hover { background: var(--accent-soft, rgba(212,160,92,0.15)); }
+  .scan-diff-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    margin-bottom: 4px;
+    border-left: 3px solid transparent;
+    font-size: 12px;
+  }
+  .scan-diff-row.kind-add { border-left-color: #5e8a5e; }
+  .scan-diff-row.kind-change { border-left-color: var(--accent); }
+  .scan-diff-row.kind-remove { border-left-color: var(--danger); }
+  .scan-diff-row input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
+  .scan-diff-row .info { flex: 1; min-width: 0; }
+  .scan-diff-row .info .name {
+    font-size: 12.5px; font-weight: 500; color: var(--ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .scan-diff-row .info .meta {
+    margin-top: 2px; font-size: 11px; color: var(--muted);
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .scan-diff-row .info .meta .client { color: var(--ink); }
+  .scan-diff-row .size {
+    font-family: var(--mono); font-feature-settings: "tnum";
+    font-size: 12px; color: var(--accent); white-space: nowrap;
+    text-align: right; min-width: 110px;
+  }
+  .scan-diff-row .size .old { color: var(--faint); text-decoration: line-through; margin-right: 4px; }
+  .scan-diff-row .size .new { color: var(--accent); }
+  .scan-diff-row .size .delta { font-size: 10px; color: var(--muted); margin-left: 4px; }
+  .scan-diff-actions { padding-top: 8px; border-top: 1px solid var(--border); }
+  .scan-diff-empty {
+    padding: 30px 14px;
+    text-align: center;
+    color: var(--faint);
+    font-size: 13px;
+  }
+
   /* Bulk selection toolbar */
   .bulk-toolbar {
     display: flex;
@@ -1177,6 +1350,56 @@
 
 </div>
 
+<!-- Drive scan confirm modal -->
+<div class="overlay" id="scan-confirm-overlay">
+  <div class="modal" style="max-width:520px">
+    <h3>掃描硬碟內容</h3>
+    <div id="scan-confirm-content"></div>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeScanConfirm()">取消</button>
+      <button class="primary" id="scan-confirm-btn" onclick="beginScan()">開始掃描</button>
+    </div>
+  </div>
+</div>
+
+<!-- Drive scan progress modal -->
+<div class="overlay" id="scan-progress-overlay">
+  <div class="modal" style="max-width:480px">
+    <h3>掃描中…</h3>
+    <div class="scan-progress-body">
+      <div class="scan-stat-grid">
+        <div class="scan-stat"><span class="l">客戶</span><span class="n" id="scan-stat-clients">0</span></div>
+        <div class="scan-stat"><span class="l">案件</span><span class="n" id="scan-stat-projects">0</span></div>
+        <div class="scan-stat"><span class="l">檔案</span><span class="n" id="scan-stat-files">0</span></div>
+        <div class="scan-stat"><span class="l">大小</span><span class="n accent" id="scan-stat-size">0 GB</span></div>
+      </div>
+      <div class="scan-current" id="scan-current">準備中…</div>
+      <div class="scan-spinner-row">
+        <div class="scan-spinner"></div>
+        <div class="scan-hint">掃描大資料夾可能需要幾分鐘,過程中請不要關閉這個分頁。</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost danger" onclick="abortScan()">中止掃描</button>
+    </div>
+  </div>
+</div>
+
+<!-- Drive scan diff modal -->
+<div class="overlay" id="scan-diff-overlay">
+  <div class="modal scan-diff-modal">
+    <div class="modal-head-row">
+      <h3 id="scan-diff-title">掃描結果</h3>
+      <button class="modal-close" onclick="closeScanDiff()" title="關閉">×</button>
+    </div>
+    <div class="scan-diff-summary" id="scan-diff-summary"></div>
+    <div class="scan-diff-list" id="scan-diff-list"></div>
+    <div class="modal-actions scan-diff-actions">
+      <button class="ghost" onclick="closeScanDiff()">取消</button>
+      <button class="primary" id="scan-apply-btn" onclick="applyScanDiff()">套用選取的變更</button>
+    </div>
+  </div>
+</div>
 <!-- Drive modal -->
 <div class="overlay" id="drive-overlay">
   <div class="modal">
@@ -1827,18 +2050,472 @@ function removeClient(name){
   save(); renderCompanyChips();
 }
 
+/* ============ DRIVE SCAN ============
+   Recursively scan a connected drive and diff against the in-app records.
+   Folder structure assumption (Shadow's setup):
+     {root}/客戶/{客戶名}/{案件名}/...    ← classifier folder, two levels under it
+     {root}/{其他類別}/{案件名}/...        ← single-level under non-classifier folders
+*/
+const SCAN_CLASSIFIER = '客戶';  // root-level folder name that contains client subfolders
+
+const scanState = {
+  driveId: null,
+  rootHandle: null,
+  topLevelFolders: [],  // [{name, isClassifier}]
+  abortFlag: false,
+  active: false,
+  // live progress counters
+  clients: 0,
+  projects: 0,
+  files: 0,
+  size: 0,  // bytes
+  current: '',
+  // results
+  results: null,  // {client, project, sizeGB, fileCount}[]
+  diff: null,
+};
+
+function fmtBytes(b){
+  if(b < 1024) return b + ' B';
+  if(b < 1024*1024) return (b/1024).toFixed(0) + ' KB';
+  if(b < 1024*1024*1024) return (b/(1024*1024)).toFixed(1) + ' MB';
+  if(b < 1024*1024*1024*1024) return (b/(1024*1024*1024)).toFixed(2) + ' GB';
+  return (b/(1024*1024*1024*1024)).toFixed(2) + ' TB';
+}
+function gbToSizeStr(gb){
+  // Match the size string format used in records
+  if(gb < 0.01) return Math.round(gb * 1024) + ' MB';
+  if(gb < 1) return gb.toFixed(2) + ' GB';
+  if(gb >= 1024) return (gb/1024).toFixed(2) + ' TB';
+  if(gb >= 100) return Math.round(gb) + ' GB';
+  if(gb >= 10) return gb.toFixed(1) + ' GB';
+  return gb.toFixed(2) + ' GB';
+}
+
+async function startDriveScan(driveId){
+  if(!(typeof window.showDirectoryPicker === 'function')){
+    toast('此瀏覽器不支援硬碟掃描功能');
+    return;
+  }
+  if(scanState.active){ toast('已有掃描進行中'); return; }
+  const drive = driveById(driveId);
+  if(!drive){ toast('找不到硬碟'); return; }
+  // Pick the drive root directory
+  let rootHandle;
+  try {
+    rootHandle = await window.showDirectoryPicker({
+      mode: 'read',
+      id: 'drive-scan-'+driveId,  // browser remembers last pick per id
+      startIn: 'documents'
+    });
+  } catch(err){
+    if(err.name !== 'AbortError') toast('無法開啟資料夾:'+err.message);
+    return;
+  }
+  // Probe top-level structure to show confirm dialog
+  const top = [];
+  try {
+    for await (const entry of rootHandle.values()){
+      if(entry.kind === 'directory'){
+        top.push({name: entry.name, isClassifier: entry.name === SCAN_CLASSIFIER});
+      }
+    }
+  } catch(err){
+    toast('讀取資料夾失敗:'+err.message);
+    return;
+  }
+  if(top.length === 0){
+    toast('這個資料夾沒有子資料夾');
+    return;
+  }
+  scanState.driveId = driveId;
+  scanState.rootHandle = rootHandle;
+  scanState.topLevelFolders = top;
+  showScanConfirm(drive, rootHandle, top);
+}
+
+function showScanConfirm(drive, rootHandle, top){
+  const el = document.getElementById('scan-confirm-content');
+  const classifier = top.find(t => t.isClassifier);
+  const others = top.filter(t => !t.isClassifier);
+  let html = `<div style="margin-bottom:12px;font-size:12.5px;color:var(--muted);line-height:1.6">
+    硬碟:<strong style="color:var(--ink)">${esc(drive.name)}</strong><br>
+    資料夾:<strong style="color:var(--ink)">${esc(rootHandle.name)}</strong>
+  </div>`;
+  html += `<div style="font-size:10px;color:var(--faint);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px">偵測到的根目錄結構</div>`;
+  if(classifier){
+    html += `<div class="scan-conf-row">
+      <span class="label">📁 ${esc(SCAN_CLASSIFIER)}/</span>
+      <span class="tag two">兩層掃描 (客戶 → 案件)</span>
+    </div>`;
+  }
+  others.forEach(t => {
+    html += `<div class="scan-conf-row">
+      <span class="label">📁 ${esc(t.name)}/</span>
+      <span class="tag">一層掃描 (整個視為客戶)</span>
+    </div>`;
+  });
+  html += `<div class="scan-conf-hint">
+    ${classifier ? `「${SCAN_CLASSIFIER}」資料夾內的第一層當<strong style="color:var(--ink)">客戶名</strong>、第二層當<strong style="color:var(--ink)">案件名</strong>。<br>` : ''}
+    其他根目錄資料夾整個名稱當<strong style="color:var(--ink)">客戶名</strong>,內部資料夾當<strong style="color:var(--ink)">案件名</strong>。
+  </div>`;
+  el.innerHTML = html;
+  document.getElementById('scan-confirm-overlay').classList.add('show');
+}
+function closeScanConfirm(){
+  document.getElementById('scan-confirm-overlay').classList.remove('show');
+  scanState.rootHandle = null;
+  scanState.driveId = null;
+  scanState.topLevelFolders = [];
+}
+
+async function beginScan(){
+  document.getElementById('scan-confirm-overlay').classList.remove('show');
+  document.getElementById('scan-progress-overlay').classList.add('show');
+  scanState.abortFlag = false;
+  scanState.active = true;
+  scanState.clients = 0;
+  scanState.projects = 0;
+  scanState.files = 0;
+  scanState.size = 0;
+  scanState.current = '準備中…';
+  scanState.results = [];
+  updateScanProgress();
+
+  try {
+    await scanDriveRoot(scanState.rootHandle);
+  } catch(err){
+    if(!scanState.abortFlag){
+      console.error('Scan error', err);
+      toast('掃描錯誤:'+err.message);
+    }
+  }
+  scanState.active = false;
+  document.getElementById('scan-progress-overlay').classList.remove('show');
+  if(scanState.abortFlag){
+    toast('掃描已中止');
+    return;
+  }
+  // Compute diff and show
+  scanState.diff = computeScanDiff(scanState.results, scanState.driveId);
+  showScanDiff();
+}
+
+function abortScan(){
+  if(confirm('確定要中止掃描嗎?已掃過的結果將被丟棄。')){
+    scanState.abortFlag = true;
+  }
+}
+
+async function scanDriveRoot(rootHandle){
+  for await (const topEntry of rootHandle.values()){
+    if(scanState.abortFlag) return;
+    if(topEntry.kind !== 'directory') continue;
+    if(topEntry.name === SCAN_CLASSIFIER){
+      // Two-level scan: client → project
+      for await (const clientEntry of topEntry.values()){
+        if(scanState.abortFlag) return;
+        if(clientEntry.kind !== 'directory') continue;
+        scanState.clients++;
+        for await (const projEntry of clientEntry.values()){
+          if(scanState.abortFlag) return;
+          if(projEntry.kind !== 'directory') continue;
+          await scanOneProject(projEntry, clientEntry.name, projEntry.name);
+        }
+      }
+    } else {
+      // One-level scan: top folder name is the "client"
+      scanState.clients++;
+      for await (const projEntry of topEntry.values()){
+        if(scanState.abortFlag) return;
+        if(projEntry.kind !== 'directory') continue;
+        await scanOneProject(projEntry, topEntry.name, projEntry.name);
+      }
+    }
+  }
+}
+
+async function scanOneProject(handle, clientName, projectName){
+  scanState.projects++;
+  scanState.current = `${clientName} / ${projectName}`;
+  updateScanProgress();
+  // Recursively sum file sizes
+  const stats = {size: 0, files: 0};
+  await sumFolder(handle, stats);
+  if(scanState.abortFlag) return;
+  scanState.results.push({
+    client: clientName,
+    project: projectName,
+    sizeBytes: stats.size,
+    sizeGB: stats.size / (1024*1024*1024),
+    fileCount: stats.files
+  });
+  // Update accumulated stats after finishing a project
+  updateScanProgress();
+}
+
+async function sumFolder(handle, stats){
+  for await (const entry of handle.values()){
+    if(scanState.abortFlag) return;
+    if(entry.kind === 'file'){
+      try {
+        const file = await entry.getFile();
+        stats.files++;
+        stats.size += file.size;
+        scanState.files++;
+        scanState.size += file.size;
+        // Throttle UI updates to every 200 files
+        if(scanState.files % 200 === 0){
+          updateScanProgress();
+          // Let the UI render
+          await new Promise(r => setTimeout(r, 0));
+        }
+      } catch(err){
+        // Skip unreadable files (e.g. .DS_Store on macOS sometimes)
+      }
+    } else if(entry.kind === 'directory'){
+      await sumFolder(entry, stats);
+    }
+  }
+}
+
+function updateScanProgress(){
+  const setNum = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  setNum('scan-stat-clients', scanState.clients);
+  setNum('scan-stat-projects', scanState.projects);
+  setNum('scan-stat-files', scanState.files.toLocaleString('en-US'));
+  setNum('scan-stat-size', fmtBytes(scanState.size));
+  setNum('scan-current', scanState.current || '...');
+}
+
+function computeScanDiff(results, driveId){
+  // Records currently on this drive
+  const existing = state.records.filter(r => r.driveId === driveId);
+  const normKey = (client, project) => `${(client||'').trim().toLowerCase()}||${(project||'').trim().toLowerCase()}`;
+
+  const scanMap = new Map();
+  results.forEach(s => scanMap.set(normKey(s.client, s.project), s));
+
+  const existingMap = new Map();
+  existing.forEach(r => existingMap.set(normKey(r.company, r.project), r));
+
+  const added = [];     // in scan, not in records
+  const changed = [];   // in both, size differs significantly
+  const removed = [];   // in records, not in scan
+  const matched = [];   // in both, size matches
+
+  // Walk scan results
+  for(const [k, s] of scanMap){
+    const e = existingMap.get(k);
+    if(!e){
+      added.push({key: k, scanned: s});
+    } else {
+      const eGB = e.size ? parseSize(e.size) : null;
+      const sGB = s.sizeGB;
+      // Significance: >0.5 GB absolute diff OR >5% relative diff
+      const tolerance = Math.max(0.5, (eGB||0) * 0.05);
+      if(eGB == null || Math.abs(eGB - sGB) > tolerance){
+        changed.push({key: k, scanned: s, existing: e, diff: sGB - (eGB||0)});
+      } else {
+        matched.push({key: k});
+      }
+    }
+  }
+  for(const [k, e] of existingMap){
+    if(!scanMap.has(k)){
+      removed.push({key: k, existing: e});
+    }
+  }
+  return {added, changed, removed, matched};
+}
+
+function showScanDiff(){
+  const d = scanState.diff;
+  const drive = driveById(scanState.driveId);
+  document.getElementById('scan-diff-title').textContent = `掃描結果:${drive?drive.name:''}`;
+  const summary = document.getElementById('scan-diff-summary');
+  summary.innerHTML = `
+    <div class="summary-item"><span class="l">新發現</span><span class="n added">${d.added.length}</span></div>
+    <div class="summary-item"><span class="l">大小變動</span><span class="n changed">${d.changed.length}</span></div>
+    <div class="summary-item"><span class="l">硬碟找不到</span><span class="n removed">${d.removed.length}</span></div>
+    <div class="summary-item"><span class="l">大小一致</span><span class="n">${d.matched.length}</span></div>
+  `;
+  const list = document.getElementById('scan-diff-list');
+  if(d.added.length === 0 && d.changed.length === 0 && d.removed.length === 0){
+    list.innerHTML = `<div class="scan-diff-empty">🎉 清單跟硬碟完全一致,沒有需要更新的內容</div>`;
+    document.getElementById('scan-apply-btn').style.display = 'none';
+  } else {
+    document.getElementById('scan-apply-btn').style.display = '';
+    let html = '';
+    if(d.added.length > 0){
+      html += `<div class="scan-diff-section" data-kind="add">
+        <div class="scan-diff-section-head">
+          <span class="title">🟢 新發現的案件</span>
+          <span class="count">${d.added.length} 項</span>
+          <button class="toggle-all" onclick="toggleScanSection('add')">全選/全不選</button>
+        </div>`;
+      d.added.forEach((item, i) => {
+        const s = item.scanned;
+        html += `<div class="scan-diff-row kind-add">
+          <input type="checkbox" checked data-kind="add" data-idx="${i}">
+          <div class="info">
+            <div class="name">${esc(s.project)}</div>
+            <div class="meta"><span class="client">${esc(s.client)}</span><span>${s.fileCount.toLocaleString('en-US')} 檔</span></div>
+          </div>
+          <div class="size"><span class="new">${gbToSizeStr(s.sizeGB)}</span></div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    if(d.changed.length > 0){
+      html += `<div class="scan-diff-section" data-kind="change">
+        <div class="scan-diff-section-head">
+          <span class="title">🟡 大小有變動</span>
+          <span class="count">${d.changed.length} 項</span>
+          <button class="toggle-all" onclick="toggleScanSection('change')">全選/全不選</button>
+        </div>`;
+      d.changed.forEach((item, i) => {
+        const s = item.scanned, e = item.existing;
+        const sign = item.diff >= 0 ? '+' : '';
+        html += `<div class="scan-diff-row kind-change">
+          <input type="checkbox" checked data-kind="change" data-idx="${i}">
+          <div class="info">
+            <div class="name">${esc(s.project)}</div>
+            <div class="meta"><span class="client">${esc(s.client)}</span><span>${s.fileCount.toLocaleString('en-US')} 檔</span></div>
+          </div>
+          <div class="size">
+            <span class="old">${esc(e.size || '—')}</span>
+            <span class="new">${gbToSizeStr(s.sizeGB)}</span>
+            <div class="delta">${sign}${item.diff.toFixed(2)} GB</div>
+          </div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    if(d.removed.length > 0){
+      html += `<div class="scan-diff-section" data-kind="remove">
+        <div class="scan-diff-section-head">
+          <span class="title">🔴 清單上有、但硬碟找不到</span>
+          <span class="count">${d.removed.length} 項</span>
+          <button class="toggle-all" onclick="toggleScanSection('remove')">全選/全不選</button>
+        </div>`;
+      d.removed.forEach((item, i) => {
+        const e = item.existing;
+        html += `<div class="scan-diff-row kind-remove">
+          <input type="checkbox" data-kind="remove" data-idx="${i}">
+          <div class="info">
+            <div class="name">${esc(e.project)}</div>
+            <div class="meta"><span class="client">${esc(e.company || '(無客戶)')}</span><span>${esc(e.date)}</span></div>
+          </div>
+          <div class="size"><span class="old" style="text-decoration:none">${esc(e.size || '—')}</span></div>
+        </div>`;
+      });
+      html += `<div style="margin-top:8px;font-size:11px;color:var(--faint);line-height:1.5;padding:0 4px">
+        ⚠ 預設不勾選 — 可能是真的被刪了、改名了,或單純這次沒掃到的位置。勾選後會從清單刪除這些紀錄。
+      </div>`;
+      html += `</div>`;
+    }
+    list.innerHTML = html;
+  }
+  document.getElementById('scan-diff-overlay').classList.add('show');
+}
+
+function toggleScanSection(kind){
+  const section = document.querySelector(`.scan-diff-section[data-kind="${kind}"]`);
+  if(!section) return;
+  const boxes = section.querySelectorAll('input[type="checkbox"]');
+  const anyUnchecked = Array.from(boxes).some(b => !b.checked);
+  boxes.forEach(b => b.checked = anyUnchecked);
+}
+
+function closeScanDiff(){
+  document.getElementById('scan-diff-overlay').classList.remove('show');
+  scanState.diff = null;
+  scanState.results = null;
+  scanState.rootHandle = null;
+}
+
+function applyScanDiff(){
+  const d = scanState.diff;
+  if(!d) return;
+  const driveId = scanState.driveId;
+  const today = todayStr();
+  let added = 0, changed = 0, removed = 0;
+
+  // Apply ADDED
+  document.querySelectorAll('.scan-diff-row.kind-add input:checked').forEach(box => {
+    const idx = parseInt(box.dataset.idx, 10);
+    const item = d.added[idx];
+    if(!item) return;
+    const s = item.scanned;
+    state.records.push({
+      id: uid(),
+      company: s.client,
+      project: s.project,
+      driveId,
+      date: today,
+      size: gbToSizeStr(s.sizeGB),
+      note: '',
+      createdAt: Date.now(),
+      scannedAt: Date.now()
+    });
+    if(s.client && !state.clients.includes(s.client)) state.clients.push(s.client);
+    added++;
+  });
+
+  // Apply CHANGED
+  document.querySelectorAll('.scan-diff-row.kind-change input:checked').forEach(box => {
+    const idx = parseInt(box.dataset.idx, 10);
+    const item = d.changed[idx];
+    if(!item) return;
+    const target = state.records.find(r => r.id === item.existing.id);
+    if(target){
+      target.size = gbToSizeStr(item.scanned.sizeGB);
+      target.updatedAt = Date.now();
+      target.scannedAt = Date.now();
+      changed++;
+    }
+  });
+
+  // Apply REMOVED
+  const removedIds = new Set();
+  document.querySelectorAll('.scan-diff-row.kind-remove input:checked').forEach(box => {
+    const idx = parseInt(box.dataset.idx, 10);
+    const item = d.removed[idx];
+    if(item) removedIds.add(item.existing.id);
+  });
+  if(removedIds.size > 0){
+    state.records = state.records.filter(r => !removedIds.has(r.id));
+    removed = removedIds.size;
+  }
+
+  save();
+  refreshAll();
+  closeScanDiff();
+  const parts = [];
+  if(added) parts.push(`新增 ${added}`);
+  if(changed) parts.push(`更新 ${changed}`);
+  if(removed) parts.push(`刪除 ${removed}`);
+  toast(parts.length > 0 ? `✓ ${parts.join(' · ')}` : '沒有套用任何變更');
+}
+
 /* ---------- drive management ---------- */
 function renderDriveMgmt(){
   const el = document.getElementById("drive-mgmt");
   if(state.drives.length===0){ el.innerHTML = `<div class="empty">尚無硬碟，按右上角新增。</div>`; return; }
   el.innerHTML = state.drives.map(d=>{
     const count = state.records.filter(r=>r.driveId===d.id).length;
+    const fsSupported = (typeof window.showDirectoryPicker === 'function');
+    const scanBtn = fsSupported
+      ? `<button class="tiny" onclick="startDriveScan('${d.id}')" title="連接這顆硬碟,讓我掃描內容並自動比對清單">🔍 掃描</button>`
+      : '';
     return `<div class="drive-card">
       <div class="dc-head"><span class="dot" style="background:${d.color};width:12px;height:12px"></span>
         <span class="dc-name">${esc(d.name)}</span></div>
       <div class="dc-meta">${count} 筆紀錄${d.note?" · "+esc(d.note):""}</div>
       ${capBlock(d.id)}
       <div class="dc-actions">
+        ${scanBtn}
         <button class="tiny ghost" onclick="openDriveModal('${d.id}')">編輯</button>
         <button class="tiny ghost danger" onclick="deleteDrive('${d.id}')">刪除</button>
       </div>
