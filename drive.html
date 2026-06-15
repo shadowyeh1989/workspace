@@ -2135,18 +2135,22 @@ const scanState = {
   diff: null,
 };
 
+// All size math in this app uses BASE-10 (SI) units — matches macOS Finder display.
+// 1 KB = 1000 B, 1 MB = 1000 KB, 1 GB = 1000 MB, 1 TB = 1000 GB.
+// macOS Finder 10.6+ shows decimal GB, so a 439.45 GB folder is 439.45 × 10^9 bytes,
+// NOT 439.45 × 2^30 bytes. Using base-2 here would underreport by ~7%.
 function fmtBytes(b){
-  if(b < 1024) return b + ' B';
-  if(b < 1024*1024) return (b/1024).toFixed(0) + ' KB';
-  if(b < 1024*1024*1024) return (b/(1024*1024)).toFixed(1) + ' MB';
-  if(b < 1024*1024*1024*1024) return (b/(1024*1024*1024)).toFixed(2) + ' GB';
-  return (b/(1024*1024*1024*1024)).toFixed(2) + ' TB';
+  if(b < 1000) return b + ' B';
+  if(b < 1e6) return (b/1000).toFixed(0) + ' KB';
+  if(b < 1e9) return (b/1e6).toFixed(1) + ' MB';
+  if(b < 1e12) return (b/1e9).toFixed(2) + ' GB';
+  return (b/1e12).toFixed(2) + ' TB';
 }
 function gbToSizeStr(gb){
-  // Match the size string format used in records
-  if(gb < 0.01) return Math.round(gb * 1024) + ' MB';
+  // BASE-10: 1 TB = 1000 GB, 1 GB = 1000 MB (matches macOS Finder).
+  if(gb < 0.01) return Math.round(gb * 1000) + ' MB';
   if(gb < 1) return gb.toFixed(2) + ' GB';
-  if(gb >= 1024) return (gb/1024).toFixed(2) + ' TB';
+  if(gb >= 1000) return (gb/1000).toFixed(2) + ' TB';
   if(gb >= 100) return Math.round(gb) + ' GB';
   if(gb >= 10) return gb.toFixed(1) + ' GB';
   return gb.toFixed(2) + ' GB';
@@ -2347,7 +2351,8 @@ async function scanOneProject(handle, clientName, projectName){
     client: clientName,
     project: projectName,
     sizeBytes: stats.size,
-    sizeGB: stats.size / (1024*1024*1024),
+    // BASE-10 GB (matches macOS Finder + the rest of the app's parseSize/fmtSize)
+    sizeGB: stats.size / 1e9,
     fileCount: stats.files
   });
   updateScanProgress();
