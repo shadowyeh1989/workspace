@@ -523,6 +523,29 @@
     font-size: 13px;
     color: var(--accent);
   }
+  /* Suspicious row: scan likely incomplete (iCloud offload, etc.) */
+  .scan-diff-row.suspicious {
+    background: rgba(200, 127, 127, 0.06);
+    border-left-color: var(--danger) !important;
+  }
+  .sus-pill {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--danger);
+    background: rgba(200, 127, 127, 0.12);
+    border: 1px solid rgba(200, 127, 127, 0.45);
+    padding: 1px 6px;
+    border-radius: 999px;
+    margin-left: 6px;
+    font-weight: 500;
+    vertical-align: middle;
+    cursor: help;
+  }
+  .skipped-warn {
+    font-size: 10.5px;
+    color: var(--danger);
+    font-family: var(--mono);
+  }
   .scan-diff-actions { padding-top: 8px; border-top: 1px solid var(--border); }
   .scan-diff-empty {
     padding: 30px 14px;
@@ -781,6 +804,10 @@
 
   /* ============ MOBILE LAYOUT ============ */
   @media (max-width: 720px) {
+    /* Auto-backup uses File System Access API which is desktop-only (Chrome/Edge).
+       Hide the badge on mobile so users don't see misleading "尚未備份" warnings;
+       cloud sync handles mobile users' data safety. */
+    #backupBadge { display: none !important; }
     /* Header reflow */
     .head-inner {
       flex-wrap: wrap;
@@ -2339,8 +2366,8 @@ async function scanOneProject(handle, clientName, projectName){
   scanState.projects++;
   scanState.current = `${clientName} / ${projectName}`;
   updateScanProgress();
-  // Recursively sum file sizes — wrapped so a problematic project doesn't kill the scan
-  const stats = {size: 0, files: 0};
+  // Per-project stats so we can flag suspicious results in the diff UI
+  const stats = {size: 0, files: 0, skipped: 0};
   try {
     await sumFolder(handle, stats);
   } catch(err){
@@ -2353,13 +2380,13 @@ async function scanOneProject(handle, clientName, projectName){
     sizeBytes: stats.size,
     // BASE-10 GB (matches macOS Finder + the rest of the app's parseSize/fmtSize)
     sizeGB: stats.size / 1e9,
-    fileCount: stats.files
+    fileCount: stats.files,
+    skippedCount: stats.skipped  // files we couldn't read (iCloud offload, etc.)
   });
   updateScanProgress();
 }
 
 async function sumFolder(handle, stats){
-  let iterError = false;
   try {
     for await (const entry of handle.values()){
       if(scanState.abortFlag) return;
@@ -2376,6 +2403,7 @@ async function sumFolder(handle, stats){
           }
         } catch(err){
           // Skip unreadable file (iCloud offload, locked, special, etc.)
+          stats.skipped++;
           recordScanError(err, 'file in '+handle.name);
         }
       } else if(entry.kind === 'directory'){
@@ -2387,8 +2415,6 @@ async function sumFolder(handle, stats){
       }
     }
   } catch(err){
-    // Iteration itself failed
-    iterError = true;
     recordScanError(err, 'iterating '+handle.name);
   }
 }
@@ -2470,16 +2496,20 @@ function showScanDiff(){
         </div>`;
       d.added.forEach((item, i) => {
         const s = item.scanned;
-        html += `<label class="scan-diff-row kind-add">
-          <input type="checkbox" checked data-kind="add" data-idx="${i}">
+        const suspicious = s.skippedCount > 0 && s.fileCount > 0 && s.skippedCount / (s.fileCount + s.skippedCount) > 0.1;
+        const skipNote = s.skippedCount > 0 ? `<span class="skipped-warn">⚠ ${s.skippedCount} 檔讀不到</span>` : '';
+        const susPill = suspicious ? `<span class="sus-pill" title="有檔案讀不到 (可能 iCloud 雲端檔),大小可能不準確">⚠ 可疑</span>` : '';
+        html += `<label class="scan-diff-row kind-add ${suspicious?'suspicious':''}">
+          <input type="checkbox" ${suspicious?'':'checked'} data-kind="add" data-idx="${i}">
           <div class="row-body">
             <div class="row-top">
-              <span class="proj">${esc(s.project)}</span>
+              <span class="proj">${esc(s.project)} ${susPill}</span>
               <span class="size-new">${gbToSizeStr(s.sizeGB)}</span>
             </div>
             <div class="row-bottom">
               <span class="client">${esc(s.client)}</span>
               <span class="files">${s.fileCount.toLocaleString('en-US')} 檔</span>
+              ${skipNote}
             </div>
           </div>
         </label>`;
@@ -2497,11 +2527,22 @@ function showScanDiff(){
         const s = item.scanned, e = item.existing;
         const sign = item.diff >= 0 ? '+' : '';
         const deltaCls = item.diff >= 0 ? 'delta-up' : 'delta-down';
-        html += `<label class="scan-diff-row kind-change">
-          <input type="checkbox" checked data-kind="change" data-idx="${i}">
+        // SUSPICIOUS detection: scan size shrank by ≥ 50%, OR many files were skipped.
+        // Likely iCloud offload, locked files, or read-failed entries → do NOT auto-check.
+        const eGB = parseSize(e.size);
+        const shrinkRatio = (eGB && s.sizeGB < eGB) ? (1 - s.sizeGB / eGB) : 0;
+        const suspicious = (shrinkRatio >= 0.5) || (s.skippedCount > 0 && s.fileCount > 0 && s.skippedCount / (s.fileCount + s.skippedCount) > 0.1);
+        const skipNote = s.skippedCount > 0
+          ? `<span class="skipped-warn">⚠ ${s.skippedCount} 檔讀不到</span>`
+          : '';
+        const susPill = suspicious
+          ? `<span class="sus-pill" title="掃描結果大幅縮水或有檔案讀不到,可能是 iCloud 雲端檔。預設不勾選,請手動確認。">⚠ 可疑</span>`
+          : '';
+        html += `<label class="scan-diff-row kind-change ${suspicious?'suspicious':''}">
+          <input type="checkbox" ${suspicious?'':'checked'} data-kind="change" data-idx="${i}">
           <div class="row-body">
             <div class="row-top">
-              <span class="proj">${esc(s.project)}</span>
+              <span class="proj">${esc(s.project)} ${susPill}</span>
               <span class="size-pair">
                 <span class="size-old">${esc(e.size || '—')}</span>
                 <span class="size-arrow">→</span>
@@ -2511,6 +2552,7 @@ function showScanDiff(){
             <div class="row-bottom">
               <span class="client">${esc(s.client)}</span>
               <span class="files">${s.fileCount.toLocaleString('en-US')} 檔</span>
+              ${skipNote}
               <span class="${deltaCls}">${sign}${item.diff.toFixed(2)} GB</span>
             </div>
           </div>

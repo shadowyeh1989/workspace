@@ -584,6 +584,10 @@
   }
   @media (max-width: 720px) {
     .hr-hint { display: none; }
+    /* Auto-backup uses File System Access API which is desktop-only (Chrome/Edge).
+       Hiding the badge on mobile prevents the misleading "尚未備份過" warning,
+       since the cloud-sync pill already shows mobile users that their data is safe. */
+    .backup-badge-wrap { display: none !important; }
   }
   .col-custom { min-width: 50px; }
   .col-add { width: 44px; text-align: center; padding: 0 !important; }

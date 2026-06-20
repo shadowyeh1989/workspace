@@ -883,6 +883,8 @@
 
   /* Mobile responsive */
   @media (max-width: 880px) {
+    /* Hide desktop-only auto-backup badge on mobile (FSA API isn't supported there) */
+    .backup-badge-wrap { display: none !important; }
     .app-header { padding: 16px 16px 0; }
     .brand-title { font-size: 20px; }
     .app-main {

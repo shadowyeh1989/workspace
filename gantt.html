@@ -120,6 +120,11 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5)}
 /* Theme toggle button (floating) */
 .theme-toggle-btn{background:var(--surface);border:1px solid var(--border);color:var(--text-2);cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
 .theme-toggle-btn:hover{color:var(--accent);border-color:var(--accent)}
+
+/* Mobile: hide desktop-only auto-backup badge (FSA API not supported there) */
+@media (max-width: 720px){
+  .backup-badge-wrap{display:none !important}
+}
 </style>
 </head>
 <body>
@@ -1112,7 +1117,7 @@ function App(){
           )}
 
           {/* Backup badge dropdown */}
-          <div ref={bMenuRef} style={{position:'relative'}}>
+          <div ref={bMenuRef} className="backup-badge-wrap" style={{position:'relative'}}>
             <button onClick={()=>setBMenuOpen(o=>!o)}
               title={lastBackup?'上次備份:'+new Date(lastBackup).toLocaleString('zh-TW'):'尚未備份'}
               style={{display:'inline-flex',alignItems:'center',gap:5,padding:'4px 10px 4px 8px',borderRadius:999,fontSize:11,color:bColors.fg,background:bColors.bg,border:'1px solid '+bColors.br,cursor:'pointer',fontFamily:"'Noto Sans TC','SF Pro Text',sans-serif",letterSpacing:'0.02em',whiteSpace:'nowrap'}}>
