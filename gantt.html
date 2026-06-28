@@ -324,7 +324,22 @@ function App(){
     setTitle(ws.title||'我的甘特圖');
     nPid=ws.nPid||10;
     nTid=ws.nTid||100;
+    // Reset undo/redo when switching workspaces — undoing into a different workspace
+    // would be confusing, so we just clear history.
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    lastSavedRef.current = JSON.stringify({projs:ws.projs||[],tags:ws.tags||[],title:ws.title||'我的甘特圖',nPid:ws.nPid||10,nTid:ws.nTid||100});
   }
+
+  // Undo / Redo system — refs (no re-render needed for these)
+  const undoStackRef = useRef([]);
+  const redoStackRef = useRef([]);
+  const lastSavedRef = useRef(null);
+  const undoLockRef = useRef(false);
+  const lastUndoTimeRef = useRef(0);
+  const [undoTick, setUndoTick] = useState(0);  // forces re-render when stacks change (for toast counter)
+  const UNDO_LIMIT_G = 50;
+  const UNDO_MERGE_MS_G = 1500;
 
   useEffect(()=>{
     try{
@@ -385,6 +400,21 @@ function App(){
     setSaveSt('saving');
     const t=setTimeout(()=>{
       try{
+        // === undo capture ===
+        // Compare current state with last saved snapshot; if changed, push prev onto undo stack
+        const currSnap = JSON.stringify({projs,tags,title,nPid,nTid});
+        if(!undoLockRef.current && lastSavedRef.current && currSnap !== lastSavedRef.current){
+          const now = Date.now();
+          // Merge rapid edits within UNDO_MERGE_MS_G into one undo entry
+          if((now - lastUndoTimeRef.current) >= UNDO_MERGE_MS_G || undoStackRef.current.length === 0){
+            undoStackRef.current.push(lastSavedRef.current);
+            if(undoStackRef.current.length > UNDO_LIMIT_G) undoStackRef.current.shift();
+            redoStackRef.current = [];  // new change clears redo
+          }
+          lastUndoTimeRef.current = now;
+        }
+        lastSavedRef.current = currSnap;
+
         setWorkspaces(wsList=>{
           const updated=wsList.map(w=>w.id===wsId?{...w,projs,tags,title,nPid,nTid}:w);
           localStorage.setItem('gantt-workspaces',JSON.stringify(updated));
@@ -492,6 +522,69 @@ function App(){
   }
   // Reload share info whenever workspace changes or user signs in
   useEffect(()=>{loadShareInfo();},[wsId,currentUser]);
+
+  // ===== Undo / Redo handlers =====
+  function applyUndoSnapshot(snapStr){
+    const s = JSON.parse(snapStr);
+    undoLockRef.current = true;
+    setProjs(s.projs || []);
+    setTags(s.tags || []);
+    setTitle(s.title || '我的甘特圖');
+    nPid = s.nPid || 10;
+    nTid = s.nTid || 100;
+    // The save useEffect will fire after these setters; clear the lock once it has run.
+    // We use a timer slightly longer than the 700ms debounce to ensure the save has completed.
+    setTimeout(()=>{ undoLockRef.current = false; }, 900);
+  }
+
+  function doUndoG(){
+    if(undoStackRef.current.length === 0){
+      // Visual feedback through a brief save-state hint
+      setSaveSt('沒有可復原的內容');
+      setTimeout(()=>setSaveSt(''), 1500);
+      return;
+    }
+    const currSnap = JSON.stringify({projs,tags,title,nPid,nTid});
+    redoStackRef.current.push(currSnap);
+    const prev = undoStackRef.current.pop();
+    lastSavedRef.current = prev;  // pretend this is what was last saved, so the upcoming
+                                  // save-effect doesn't try to undo-capture this change again
+    applyUndoSnapshot(prev);
+    setUndoTick(t=>t+1);
+    setSaveSt(`↶ 已復原 (還可復原 ${undoStackRef.current.length} 次)`);
+    setTimeout(()=>setSaveSt(''), 1800);
+  }
+
+  function doRedoG(){
+    if(redoStackRef.current.length === 0){
+      setSaveSt('沒有可重做的內容');
+      setTimeout(()=>setSaveSt(''), 1500);
+      return;
+    }
+    const currSnap = JSON.stringify({projs,tags,title,nPid,nTid});
+    undoStackRef.current.push(currSnap);
+    const next = redoStackRef.current.pop();
+    lastSavedRef.current = next;
+    applyUndoSnapshot(next);
+    setUndoTick(t=>t+1);
+    setSaveSt(`↷ 已重做 (還可重做 ${redoStackRef.current.length} 次)`);
+    setTimeout(()=>setSaveSt(''), 1800);
+  }
+
+  // Cmd/Ctrl + Z (and Shift for redo)
+  useEffect(()=>{
+    function handler(e){
+      if(!(e.metaKey || e.ctrlKey)) return;
+      if(e.key !== 'z' && e.key !== 'Z') return;
+      const t = e.target;
+      if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      if(e.shiftKey) doRedoG();
+      else doUndoG();
+    }
+    document.addEventListener('keydown', handler);
+    return ()=>document.removeEventListener('keydown', handler);
+  },[projs,tags,title]);
 
   async function createShare(daysToExpire){
     if(!sbClient||!currentUser){alert('需要先登入才能分享');return;}

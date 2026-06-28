@@ -6201,6 +6201,109 @@ try {
 
 // Refresh badge every minute to keep "X mins ago" text accurate
 setInterval(updateBackupBadge, 60000);
+
+// ============================================================
+// UNDO / REDO SYSTEM (Cmd+Z / Cmd+Shift+Z)
+// Snapshot-based: every saveState() captures the previous state.
+// Rapid edits within UNDO_MERGE_MS collapse into one undo entry.
+// ============================================================
+(function setupUndoRedo(){
+  const UNDO_LIMIT = 50;
+  const UNDO_MERGE_MS = 1500;
+  let undoStack = [];
+  let redoStack = [];
+  let lastSavedSnapshot = JSON.stringify(state);
+  let lastUndoTime = 0;
+  let undoLock = false;
+
+  function snap(){ return JSON.stringify(state); }
+
+  function pushUndo(prev){
+    const now = Date.now();
+    // Merge rapid edits (e.g. dragging a slider, typing fast) into one undo entry
+    if((now - lastUndoTime) < UNDO_MERGE_MS && undoStack.length > 0){
+      lastUndoTime = now;
+      return;
+    }
+    undoStack.push(prev);
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack = [];  // any new change clears redo
+    lastUndoTime = now;
+  }
+
+  // Wrap saveState — capture undo before each save, unless we're inside undo/redo itself
+  const origSaveState = saveState;
+  window.saveState = function(...args){
+    if(!undoLock){
+      const curr = snap();
+      if(curr !== lastSavedSnapshot){
+        pushUndo(lastSavedSnapshot);
+        lastSavedSnapshot = curr;
+      }
+    }
+    return origSaveState.apply(this, args);
+  };
+
+  function applySnapshot(snapshot){
+    // Replace top-level keys of state without changing the object reference
+    // (some closures may hold a direct reference to state)
+    const parsed = JSON.parse(snapshot);
+    Object.keys(state).forEach(k => { delete state[k]; });
+    Object.assign(state, parsed);
+  }
+
+  function doUndo(){
+    if(undoStack.length === 0){
+      showToast('沒有可復原的內容');
+      return;
+    }
+    undoLock = true;
+    const curr = snap();
+    redoStack.push(curr);
+    const prev = undoStack.pop();
+    applySnapshot(prev);
+    lastSavedSnapshot = prev;
+    saveState();  // persist (won't push another undo because undoLock is true)
+    renderAll();
+    undoLock = false;
+    showToast(`↶ 已復原 (還可復原 ${undoStack.length} 次)`);
+  }
+
+  function doRedo(){
+    if(redoStack.length === 0){
+      showToast('沒有可重做的內容');
+      return;
+    }
+    undoLock = true;
+    const curr = snap();
+    undoStack.push(curr);
+    const next = redoStack.pop();
+    applySnapshot(next);
+    lastSavedSnapshot = next;
+    saveState();
+    renderAll();
+    undoLock = false;
+    showToast(`↷ 已重做 (還可重做 ${redoStack.length} 次)`);
+  }
+
+  // Cmd+Z / Cmd+Shift+Z (Mac) and Ctrl+Z / Ctrl+Shift+Z (Win/Linux)
+  document.addEventListener('keydown', e => {
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key !== 'z' && e.key !== 'Z') return;
+    // If user is typing in a text field, let the browser handle native input undo
+    const t = e.target;
+    if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)){
+      return;
+    }
+    e.preventDefault();
+    if(e.shiftKey) doRedo();
+    else doUndo();
+  });
+
+  // Expose for debugging
+  window.__undo = doUndo;
+  window.__redo = doRedo;
+})();
 </script>
 
 </body>

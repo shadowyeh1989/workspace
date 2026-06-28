@@ -3599,6 +3599,90 @@ function bootstrapInit(){
     finish();
   }
 })();
+
+// ============================================================
+// UNDO / REDO SYSTEM (Cmd+Z / Cmd+Shift+Z)
+// ============================================================
+(function setupUndoRedo(){
+  const UNDO_LIMIT = 50;
+  const UNDO_MERGE_MS = 1500;
+  let undoStack = [];
+  let redoStack = [];
+  let lastSavedSnapshot = JSON.stringify(state);
+  let lastUndoTime = 0;
+  let undoLock = false;
+
+  function snap(){ return JSON.stringify(state); }
+
+  function pushUndo(prev){
+    const now = Date.now();
+    if((now - lastUndoTime) < UNDO_MERGE_MS && undoStack.length > 0){
+      lastUndoTime = now;
+      return;
+    }
+    undoStack.push(prev);
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack = [];
+    lastUndoTime = now;
+  }
+
+  const origSave = save;
+  window.save = function(...args){
+    if(!undoLock){
+      const curr = snap();
+      if(curr !== lastSavedSnapshot){
+        pushUndo(lastSavedSnapshot);
+        lastSavedSnapshot = curr;
+      }
+    }
+    return origSave.apply(this, args);
+  };
+
+  function applySnapshot(snapshot){
+    const parsed = JSON.parse(snapshot);
+    Object.keys(state).forEach(k => { delete state[k]; });
+    Object.assign(state, parsed);
+  }
+
+  function doUndo(){
+    if(undoStack.length === 0){ toast('沒有可復原的內容'); return; }
+    undoLock = true;
+    redoStack.push(snap());
+    const prev = undoStack.pop();
+    applySnapshot(prev);
+    lastSavedSnapshot = prev;
+    save();
+    refreshAll();
+    undoLock = false;
+    toast(`↶ 已復原 (還可復原 ${undoStack.length} 次)`);
+  }
+
+  function doRedo(){
+    if(redoStack.length === 0){ toast('沒有可重做的內容'); return; }
+    undoLock = true;
+    undoStack.push(snap());
+    const next = redoStack.pop();
+    applySnapshot(next);
+    lastSavedSnapshot = next;
+    save();
+    refreshAll();
+    undoLock = false;
+    toast(`↷ 已重做 (還可重做 ${redoStack.length} 次)`);
+  }
+
+  document.addEventListener('keydown', e => {
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key !== 'z' && e.key !== 'Z') return;
+    const t = e.target;
+    if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    if(e.shiftKey) doRedo();
+    else doUndo();
+  });
+
+  window.__undo = doUndo;
+  window.__redo = doRedo;
+})();
 </script>
 </body>
 </html>
