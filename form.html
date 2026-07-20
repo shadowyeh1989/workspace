@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0e0e10">
+<link rel="icon" type="image/x-icon" href="icons/favicon.ico">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<title>拍攝需求表單</title>
+<script>
+(function(){try{var s=localStorage.getItem('shadow_ledger_theme');if(s==='light'||s==='dark'){document.documentElement.setAttribute('data-theme',s);return;}}catch(e){}document.documentElement.setAttribute('data-theme','dark');})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root,html[data-theme="dark"]{
+  --bg:#0e0e10;--surface:#18181b;--surface-2:#232327;--hover:#2a2a2f;
+  --ink:#ededee;--muted:#a1a1a6;--faint:#6e6e73;
+  --accent:#d4a05c;--accent-soft:rgba(212,160,92,0.15);--border:#2e2e33;
+  --danger:#c87f7f;--danger-bg:rgba(200,127,127,0.12);--success:#6a9c6a;
+  --serif:'Iowan Old Style','Charter',Georgia,serif;
+  --sans:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  --shadow:0 1px 3px rgba(0,0,0,0.4);
+}
+html[data-theme="light"]{
+  --bg:#faf8f3;--surface:#fff;--surface-2:#f1ede4;--hover:#ebe6da;
+  --ink:#2a2620;--muted:#5e5849;--faint:#8a8270;
+  --accent:#a87434;--accent-soft:rgba(168,116,52,0.14);--border:#d8d2c4;
+  --danger:#a04848;--danger-bg:rgba(160,72,72,0.10);--success:#4a7a4a;
+  --shadow:0 1px 3px rgba(60,50,30,0.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+button{font-family:inherit;cursor:pointer}
+input,textarea,select{font-family:inherit}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--surface-2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+.wrap{max-width:900px;margin:0 auto;padding:22px 20px 80px}
+.top-nav{font-size:11px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-bottom:6px}
+.top-nav a{color:var(--faint);text-decoration:none}
+.top-nav a:hover{color:var(--accent)}
+h1.brand{font-size:26px;font-weight:600}
+h1.brand em{font-family:var(--serif);font-style:italic;color:var(--accent);font-weight:500}
+.brand-sub{font-size:10px;letter-spacing:.2em;color:var(--faint);text-transform:uppercase;margin-top:2px}
+.header-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:24px}
+.header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.user-pill{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:12px;font-family:var(--mono);color:var(--muted);cursor:pointer}
+.user-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--success)}
+.icon-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.icon-btn:hover{color:var(--accent);border-color:var(--accent)}
+
+.primary{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:500}
+.primary:hover{filter:brightness(1.08)}
+.ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:8px;font-size:13px}
+.ghost:hover{color:var(--ink);border-color:var(--faint)}
+.ghost.danger{color:var(--danger);border-color:var(--danger)}
+.ghost.danger:hover{background:var(--danger);color:#fff}
+.tiny{padding:4px 10px;font-size:11.5px;border-radius:6px}
+
+/* Form cards */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.form-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .15s}
+.form-card:hover{border-color:var(--accent)}
+.form-card .fc-client{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:2px}
+.form-card .fc-title{font-size:12px;color:var(--muted);margin-bottom:10px}
+.form-card .fc-meta{display:flex;gap:10px;font-size:11px;color:var(--faint);font-family:var(--mono);flex-wrap:wrap;align-items:center}
+.form-card .fc-resp{color:var(--accent);font-weight:600}
+.form-card .fc-inactive{color:var(--danger);border:1px solid var(--danger);padding:1px 8px;border-radius:999px;font-size:10px}
+.empty{padding:60px 20px;text-align:center;color:var(--faint);font-size:14px}
+.empty .big{font-size:40px;margin-bottom:10px}
+
+/* Editor & detail panel */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:var(--shadow);margin-bottom:18px}
+.panel h2{font-family:var(--serif);font-style:italic;font-weight:500;font-size:19px;margin-bottom:14px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+.field input[type=text],.field input[type=email],.field textarea{width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--ink);padding:10px 12px;border-radius:8px;font-size:14px}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.q-list{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.q-item{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.q-item .q-head{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.q-item .q-num{font-family:var(--mono);font-size:11px;color:var(--faint);flex-shrink:0}
+.q-item .q-text-input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--ink);padding:8px 10px;border-radius:7px;font-size:13.5px;min-width:0}
+.q-item .q-type-pick{background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:7px 8px;border-radius:7px;font-size:12px;flex-shrink:0}
+.q-item .q-del{background:transparent;border:1px solid var(--border);color:var(--faint);width:28px;height:28px;border-radius:6px;font-size:13px;flex-shrink:0}
+.q-item .q-del:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+.q-item .q-req{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);cursor:pointer;user-select:none;flex-shrink:0}
+.q-item .q-req input{accent-color:var(--accent)}
+.q-opts{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-left:26px}
+.q-opt-row{display:flex;gap:6px;align-items:center}
+.q-opt-row input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--ink);padding:6px 10px;border-radius:6px;font-size:13px;min-width:0}
+.q-opt-row button{background:transparent;border:1px solid var(--border);color:var(--faint);width:24px;height:24px;border-radius:5px;font-size:11px;flex-shrink:0}
+.q-opt-row button:hover{color:var(--danger);border-color:var(--danger)}
+.q-add-opt{align-self:flex-start;background:transparent;border:1px dashed var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:12px}
+.q-add-opt:hover{color:var(--accent);border-color:var(--accent)}
+.editor-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+/* Detail view */
+.share-box{display:flex;gap:8px;margin-bottom:8px}
+.share-box input{flex:1;background:var(--surface-2);border:1px solid var(--border);color:var(--ink);padding:10px 12px;border-radius:8px;font-size:11.5px;font-family:var(--mono);min-width:0}
+.resp-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.resp-card .r-time{font-family:var(--mono);font-size:11px;color:var(--faint);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.resp-card .r-del{background:transparent;border:1px solid var(--border);color:var(--faint);width:24px;height:24px;border-radius:5px;font-size:11px}
+.resp-card .r-del:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+.resp-qa{margin-bottom:8px}
+.resp-qa:last-child{margin-bottom:0}
+.resp-qa .q{font-size:11.5px;color:var(--faint);margin-bottom:2px}
+.resp-qa .a{font-size:13.5px;color:var(--ink);white-space:pre-wrap}
+.resp-qa .a.choice{display:inline-block;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);padding:2px 10px;border-radius:999px;font-size:12.5px}
+
+.status-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:999px;font-size:11px;border:1px solid}
+.status-pill.on{color:var(--success);border-color:var(--success)}
+.status-pill.off{color:var(--danger);border-color:var(--danger)}
+
+/* Login */
+.login-screen{max-width:380px;margin:8vh auto;padding:0 20px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:var(--shadow)}
+.login-card h2{font-family:var(--serif);font-style:italic;font-weight:500;font-size:20px;margin-bottom:4px}
+.login-card .sub{font-size:11px;color:var(--faint);letter-spacing:.15em;text-transform:uppercase;margin-bottom:20px}
+.login-msg{font-size:12px;margin-top:10px;min-height:16px}
+.login-msg.err{color:var(--danger)}
+.login-msg.ok{color:var(--success)}
+.login-toggle{margin-top:14px;text-align:center;font-size:12px;color:var(--muted)}
+.login-toggle a{color:var(--accent);cursor:pointer;text-decoration:none}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface-2);color:var(--ink);border:1px solid var(--border);padding:11px 22px;border-radius:10px;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;transition:all .25s;z-index:300;max-width:90vw}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.hidden{display:none !important}
+
+@media (max-width:600px){
+  .wrap{padding:16px 14px 60px}
+  h1.brand{font-size:21px}
+  .form-grid{grid-template-columns:1fr}
+  .q-item .q-head{flex-wrap:wrap}
+  .q-item .q-text-input{width:100%;flex:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen" style="display:none">
+  <div class="login-card">
+    <h2>拍攝需求<em style="color:var(--accent)">表單</em></h2>
+    <div class="sub">Shoot Brief · Form Builder</div>
+    <div class="field"><label>Email</label><input type="email" id="li-email" placeholder="you@example.com"></div>
+    <div class="field"><label>密碼</label><input type="text" id="li-pass" placeholder="••••••" style="-webkit-text-security:disc"></div>
+    <button class="primary" style="width:100%" id="li-btn" onclick="doAuth()">登入</button>
+    <div class="login-msg" id="li-msg"></div>
+    <div class="login-toggle" id="li-toggle">還沒有帳號?<a onclick="toggleAuthMode()"> 註冊新帳號</a></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="wrap" id="app" style="display:none">
+  <div class="top-nav"><a href="index.html">← Workspace</a></div>
+  <div class="header-row">
+    <div>
+      <h1 class="brand">拍攝需求<em>表單</em></h1>
+      <div class="brand-sub">Shoot Brief · Form Builder</div>
+    </div>
+    <div class="header-actions">
+      <div class="user-pill" onclick="doLogout()" title="點擊登出"><span class="dot"></span><span id="user-email"></span></div>
+      <button class="icon-btn" onclick="toggleTheme()" title="切換主題" id="theme-btn"></button>
+    </div>
+  </div>
+
+  <!-- LIST VIEW -->
+  <div id="view-list">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <h2 style="font-size:15px;font-weight:600">我的表單</h2>
+      <button class="primary" onclick="openEditor()">＋ 新增表單</button>
+    </div>
+    <div class="form-grid" id="form-grid"></div>
+    <div class="empty" id="list-empty" style="display:none"><div class="big">📋</div>還沒有任何表單<br>按「＋ 新增表單」建立第一份</div>
+  </div>
+
+  <!-- EDITOR VIEW -->
+  <div id="view-editor" class="hidden">
+    <div class="panel">
+      <h2 id="editor-title">新增表單</h2>
+      <div class="field"><label>業主公司名稱 *</label><input type="text" id="ed-client" placeholder="例如:親子天下"></div>
+      <div class="field"><label>表單標題 (業主會看到)</label><input type="text" id="ed-title" placeholder="拍攝需求確認"></div>
+      <div class="field"><label>Email 通知 (業主送出後通知你,留空 = 不通知)</label><input type="email" id="ed-email" placeholder="you@example.com"></div>
+      <div class="field"><label>題目</label>
+        <div class="q-list" id="q-list"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ghost tiny" onclick="addQuestion('choice')">＋ 選擇題</button>
+          <button class="ghost tiny" onclick="addQuestion('text')">＋ 文字題</button>
+        </div>
+      </div>
+      <div class="editor-actions">
+        <button class="ghost" onclick="closeEditor()">取消</button>
+        <button class="primary" id="ed-save-btn" onclick="saveForm()">儲存表單</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL VIEW -->
+  <div id="view-detail" class="hidden">
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <div>
+          <h2 id="dt-client" style="margin-bottom:2px"></h2>
+          <div style="font-size:12px;color:var(--muted)" id="dt-title"></div>
+        </div>
+        <span class="status-pill on" id="dt-status"><span>●</span><span>啟用中</span></span>
+      </div>
+      <div style="font-size:11px;color:var(--faint);font-family:var(--mono);margin-bottom:16px" id="dt-meta"></div>
+
+      <div class="field"><label>分享連結 (傳給業主)</label>
+        <div class="share-box">
+          <input type="text" readonly id="dt-link" onfocus="this.select()">
+          <button class="primary" id="dt-copy-btn" onclick="copyFormLink()">📋 複製</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ghost tiny" onclick="editCurrentForm()">✎ 編輯題目</button>
+        <button class="ghost tiny" id="dt-toggle-btn" onclick="toggleFormActive()">⏸ 停用連結</button>
+        <button class="ghost tiny danger" onclick="deleteCurrentForm()">✕ 刪除表單</button>
+        <button class="ghost tiny" onclick="backToList()" style="margin-left:auto">← 返回列表</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>回覆紀錄 <span style="font-family:var(--mono);font-size:13px;color:var(--faint)" id="dt-resp-count"></span></h2>
+      <div id="dt-responses"></div>
+      <div class="empty" id="dt-resp-empty" style="display:none;padding:30px">還沒有收到回覆</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://bokmluubqcnezjcboogq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJva21sdXVicWNuZXpqY2Jvb2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDI2ODIsImV4cCI6MjA5NTk3ODY4Mn0.W-cvOomywSU2L8xJaX98052_UZqed7rIkALQ_ETxxTw';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+let forms = [];             // cached list
+let currentForm = null;     // detail view target
+let editingFormId = null;   // editor: null = creating new
+let editorQuestions = [];   // editor working copy
+let authMode = 'login';
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function shortId(){
+  const chars='abcdefghijkmnopqrstuvwxyz23456789';
+  let s='';
+  const a=crypto.getRandomValues(new Uint8Array(10));
+  for(const v of a) s+=chars[v%chars.length];
+  return s;
+}
+function buildFormUrl(id){
+  const base = window.location.href.split('?')[0].split('#')[0].replace(/form\.html.*$/,'form-view.html');
+  return base + '?id=' + id;
+}
+function fmtTime(ts){
+  return new Date(ts).toLocaleString('zh-TW',{hour12:false});
+}
+
+/* ---------- default questions (Shadow's 4) ---------- */
+function defaultQuestions(){
+  return [
+    { id:'q1', type:'text',   text:'拍攝時間與地點', required:true, placeholder:'例如:6/20 (五) 14:00,台北市信義區○○○' },
+    { id:'q2', type:'choice', text:'需要活動整場紀錄,還是活動精華紀錄?', required:true, options:['A. 整場紀錄','B. 精華紀錄'] },
+    { id:'q3', type:'choice', text:'需架燈嗎?還是記者會類型直接拍攝(現場需有插座)', required:true, options:['需架燈','記者會類型直接拍攝'] },
+    { id:'q4', type:'choice', text:'現場有空間/時間架燈嗎?(需約 30 分鐘內的時間)', required:true, options:['有','沒有'] }
+  ];
+}
+
+/* ---------- theme ---------- */
+function themeIcon(){
+  const t = document.documentElement.getAttribute('data-theme');
+  $('theme-btn').innerHTML = t==='dark'
+    ? '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+}
+function toggleTheme(){
+  const next = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next);
+  try{ localStorage.setItem('shadow_ledger_theme',next); }catch(e){}
+  const m=document.querySelector('meta[name="theme-color"]');
+  if(m) m.setAttribute('content', next==='light'?'#faf8f3':'#0e0e10');
+  themeIcon();
+}
+
+/* ---------- auth ---------- */
+function toggleAuthMode(){
+  authMode = authMode==='login'?'signup':'login';
+  $('li-btn').textContent = authMode==='login'?'登入':'註冊';
+  $('li-toggle').innerHTML = authMode==='login'
+    ? '還沒有帳號?<a onclick="toggleAuthMode()"> 註冊新帳號</a>'
+    : '已有帳號?<a onclick="toggleAuthMode()"> 回到登入</a>';
+  $('li-msg').textContent='';
+}
+async function doAuth(){
+  const email = $('li-email').value.trim();
+  const pass = $('li-pass').value;
+  const msg = $('li-msg');
+  if(!email || !pass){ msg.className='login-msg err'; msg.textContent='請填 Email 和密碼'; return; }
+  $('li-btn').disabled = true;
+  try{
+    let res;
+    if(authMode==='login'){
+      res = await sb.auth.signInWithPassword({email, password:pass});
+    } else {
+      res = await sb.auth.signUp({email, password:pass});
+    }
+    if(res.error) throw res.error;
+    if(res.data.user){
+      currentUser = res.data.user;
+      enterApp();
+    }
+  }catch(err){
+    msg.className='login-msg err';
+    msg.textContent = err.message || '失敗,請再試一次';
+  }finally{
+    $('li-btn').disabled = false;
+  }
+}
+async function doLogout(){
+  if(!confirm('登出?')) return;
+  await sb.auth.signOut();
+  currentUser = null;
+  $('app').style.display='none';
+  $('login-screen').style.display='';
+}
+function enterApp(){
+  $('login-screen').style.display='none';
+  $('app').style.display='';
+  $('user-email').textContent = currentUser.email;
+  themeIcon();
+  loadForms();
+}
+
+/* ---------- forms CRUD ---------- */
+async function loadForms(){
+  try{
+    const {data, error} = await sb.from('shoot_forms')
+      .select('id,client_name,title,notify_email,questions,created_at,is_active')
+      .eq('user_id', currentUser.id)
+      .order('created_at', {ascending:false});
+    if(error) throw error;
+    forms = data || [];
+    // Load response counts in one query
+    const ids = forms.map(f=>f.id);
+    const counts = {};
+    if(ids.length > 0){
+      const {data:resp, error:e2} = await sb.from('shoot_form_responses')
+        .select('form_id')
+        .in('form_id', ids);
+      if(!e2 && resp) resp.forEach(r => { counts[r.form_id] = (counts[r.form_id]||0)+1; });
+    }
+    forms.forEach(f => f._respCount = counts[f.id] || 0);
+    renderList();
+  }catch(err){
+    console.error(err);
+    toast('載入失敗:'+err.message);
+  }
+}
+function renderList(){
+  const grid = $('form-grid');
+  if(forms.length === 0){
+    grid.innerHTML='';
+    $('list-empty').style.display='';
+    return;
+  }
+  $('list-empty').style.display='none';
+  grid.innerHTML = forms.map(f => `
+    <div class="form-card" onclick="openDetail('${f.id}')">
+      <div class="fc-client">${esc(f.client_name)}</div>
+      <div class="fc-title">${esc(f.title || '拍攝需求確認')}</div>
+      <div class="fc-meta">
+        <span class="fc-resp">${f._respCount} 回覆</span>
+        <span>${new Date(f.created_at).toLocaleDateString('zh-TW')}</span>
+        ${f.is_active ? '' : '<span class="fc-inactive">已停用</span>'}
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ---------- editor ---------- */
+function openEditor(formToEdit){
+  editingFormId = formToEdit ? formToEdit.id : null;
+  $('editor-title').textContent = formToEdit ? '編輯表單' : '新增表單';
+  $('ed-save-btn').textContent = formToEdit ? '更新表單' : '儲存表單';
+  $('ed-client').value = formToEdit ? formToEdit.client_name : '';
+  $('ed-title').value = formToEdit ? (formToEdit.title||'') : '拍攝需求確認';
+  $('ed-email').value = formToEdit ? (formToEdit.notify_email||'') : (localStorage.getItem('shoot_form_notify_email')||'');
+  editorQuestions = formToEdit ? JSON.parse(JSON.stringify(formToEdit.questions)) : defaultQuestions();
+  renderQuestions();
+  $('view-list').classList.add('hidden');
+  $('view-detail').classList.add('hidden');
+  $('view-editor').classList.remove('hidden');
+  window.scrollTo({top:0});
+}
+function closeEditor(){
+  $('view-editor').classList.add('hidden');
+  if(currentForm){ $('view-detail').classList.remove('hidden'); }
+  else { $('view-list').classList.remove('hidden'); }
+}
+function renderQuestions(){
+  const list = $('q-list');
+  list.innerHTML = editorQuestions.map((q, i) => {
+    const optsHtml = q.type === 'choice' ? `
+      <div class="q-opts">
+        ${(q.options||[]).map((o, j) => `
+          <div class="q-opt-row">
+            <input type="text" value="${esc(o)}" onchange="updateOption(${i},${j},this.value)" placeholder="選項文字">
+            <button onclick="removeOption(${i},${j})" title="刪除選項">✕</button>
+          </div>
+        `).join('')}
+        <button class="q-add-opt" onclick="addOption(${i})">＋ 加選項</button>
+      </div>` : `
+      <div class="q-opts">
+        <input type="text" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:6px;font-size:12px;font-style:italic" value="${esc(q.placeholder||'')}" onchange="updatePlaceholder(${i},this.value)" placeholder="提示文字 (業主會看到的填寫提示,選填)">
+      </div>`;
+    return `
+    <div class="q-item">
+      <div class="q-head">
+        <span class="q-num">${i+1}</span>
+        <input type="text" class="q-text-input" value="${esc(q.text)}" onchange="updateQuestionText(${i},this.value)" placeholder="題目文字">
+        <select class="q-type-pick" onchange="updateQuestionType(${i},this.value)">
+          <option value="choice" ${q.type==='choice'?'selected':''}>選擇題</option>
+          <option value="text" ${q.type==='text'?'selected':''}>文字題</option>
+        </select>
+        <label class="q-req"><input type="checkbox" ${q.required?'checked':''} onchange="updateRequired(${i},this.checked)">必填</label>
+        <button class="q-del" onclick="removeQuestion(${i})" title="刪除題目">✕</button>
+      </div>
+      ${optsHtml}
+    </div>`;
+  }).join('');
+}
+function addQuestion(type){
+  editorQuestions.push(
+    type === 'choice'
+      ? { id:'q'+Date.now(), type:'choice', text:'', required:false, options:['選項 A','選項 B'] }
+      : { id:'q'+Date.now(), type:'text', text:'', required:false, placeholder:'' }
+  );
+  renderQuestions();
+}
+function removeQuestion(i){
+  editorQuestions.splice(i,1);
+  renderQuestions();
+}
+function updateQuestionText(i,v){ editorQuestions[i].text = v; }
+function updateQuestionType(i,v){
+  editorQuestions[i].type = v;
+  if(v==='choice' && !editorQuestions[i].options) editorQuestions[i].options = ['選項 A','選項 B'];
+  renderQuestions();
+}
+function updateRequired(i,v){ editorQuestions[i].required = v; }
+function updatePlaceholder(i,v){ editorQuestions[i].placeholder = v; }
+function addOption(i){ editorQuestions[i].options.push(''); renderQuestions(); }
+function removeOption(i,j){ editorQuestions[i].options.splice(j,1); renderQuestions(); }
+function updateOption(i,j,v){ editorQuestions[i].options[j] = v; }
+
+async function saveForm(){
+  const client = $('ed-client').value.trim();
+  const title = $('ed-title').value.trim();
+  const email = $('ed-email').value.trim();
+  if(!client){ toast('請填業主公司名稱'); $('ed-client').focus(); return; }
+  const qs = editorQuestions.filter(q => q.text.trim() !== '');
+  if(qs.length === 0){ toast('至少要有一題'); return; }
+  // Validate choice questions have >= 2 non-empty options
+  for(const q of qs){
+    if(q.type === 'choice'){
+      q.options = (q.options||[]).filter(o => o.trim() !== '');
+      if(q.options.length < 2){ toast(`「${q.text.slice(0,12)}…」選項至少要 2 個`); return; }
+    }
+  }
+  // Remember email for next time
+  if(email) localStorage.setItem('shoot_form_notify_email', email);
+  $('ed-save-btn').disabled = true;
+  try{
+    if(editingFormId){
+      const {error} = await sb.from('shoot_forms').update({
+        client_name: client, title, notify_email: email || null,
+        questions: qs, updated_at: new Date().toISOString()
+      }).eq('id', editingFormId).eq('user_id', currentUser.id);
+      if(error) throw error;
+      toast('✓ 已更新');
+      await loadForms();
+      // Refresh detail view if open
+      const updated = forms.find(f=>f.id===editingFormId);
+      if(updated && currentForm){ currentForm = updated; }
+      closeEditor();
+      if(currentForm) renderDetail();
+    } else {
+      const id = shortId();
+      const {error} = await sb.from('shoot_forms').insert({
+        id, user_id: currentUser.id,
+        client_name: client, title, notify_email: email || null,
+        questions: qs, is_active: true
+      });
+      if(error) throw error;
+      toast('✓ 已建立表單');
+      await loadForms();
+      // Go straight to detail so user can copy the link
+      openDetail(id);
+    }
+  }catch(err){
+    console.error(err);
+    toast('儲存失敗:'+err.message);
+  }finally{
+    $('ed-save-btn').disabled = false;
+  }
+}
+
+/* ---------- detail ---------- */
+async function openDetail(id){
+  currentForm = forms.find(f=>f.id===id);
+  if(!currentForm) return;
+  $('view-list').classList.add('hidden');
+  $('view-editor').classList.add('hidden');
+  $('view-detail').classList.remove('hidden');
+  renderDetail();
+  loadResponses();
+  window.scrollTo({top:0});
+}
+function renderDetail(){
+  const f = currentForm;
+  $('dt-client').textContent = f.client_name;
+  $('dt-title').textContent = f.title || '拍攝需求確認';
+  $('dt-meta').textContent = '建立於 ' + fmtTime(f.created_at) + ' · ' + f.questions.length + ' 題';
+  $('dt-link').value = buildFormUrl(f.id);
+  const st = $('dt-status');
+  if(f.is_active){
+    st.className='status-pill on'; st.innerHTML='<span>●</span><span>啟用中</span>';
+    $('dt-toggle-btn').textContent='⏸ 停用連結';
+  }else{
+    st.className='status-pill off'; st.innerHTML='<span>●</span><span>已停用</span>';
+    $('dt-toggle-btn').textContent='▶ 重新啟用';
+  }
+}
+function backToList(){
+  currentForm = null;
+  $('view-detail').classList.add('hidden');
+  $('view-list').classList.remove('hidden');
+  loadForms();
+}
+async function copyFormLink(){
+  try{
+    await navigator.clipboard.writeText($('dt-link').value);
+    const b=$('dt-copy-btn'); b.textContent='✓ 已複製';
+    setTimeout(()=>{b.textContent='📋 複製';},2000);
+  }catch(e){ toast('複製失敗,請手動選取'); }
+}
+function editCurrentForm(){ openEditor(currentForm); }
+async function toggleFormActive(){
+  const f = currentForm;
+  const next = !f.is_active;
+  if(!next && !confirm('停用後業主將無法打開這個連結,確定?')) return;
+  try{
+    const {error} = await sb.from('shoot_forms').update({is_active: next}).eq('id', f.id).eq('user_id', currentUser.id);
+    if(error) throw error;
+    f.is_active = next;
+    renderDetail();
+    toast(next?'✓ 已重新啟用':'已停用連結');
+  }catch(err){ toast('失敗:'+err.message); }
+}
+async function deleteCurrentForm(){
+  if(!confirm(`刪除表單「${currentForm.client_name}」?\n所有回覆紀錄也會一併刪除,無法復原。`)) return;
+  try{
+    const {error} = await sb.from('shoot_forms').delete().eq('id', currentForm.id).eq('user_id', currentUser.id);
+    if(error) throw error;
+    toast('已刪除');
+    backToList();
+  }catch(err){ toast('刪除失敗:'+err.message); }
+}
+
+/* ---------- responses ---------- */
+async function loadResponses(){
+  const f = currentForm;
+  try{
+    const {data, error} = await sb.from('shoot_form_responses')
+      .select('id,answers,submitted_at')
+      .eq('form_id', f.id)
+      .order('submitted_at', {ascending:false});
+    if(error) throw error;
+    renderResponses(data || []);
+  }catch(err){
+    console.error(err);
+    $('dt-responses').innerHTML='';
+    toast('回覆載入失敗:'+err.message);
+  }
+}
+function renderResponses(resps){
+  $('dt-resp-count').textContent = resps.length ? `(${resps.length})` : '';
+  const box = $('dt-responses');
+  if(resps.length === 0){
+    box.innerHTML='';
+    $('dt-resp-empty').style.display='';
+    return;
+  }
+  $('dt-resp-empty').style.display='none';
+  const qById = {};
+  currentForm.questions.forEach(q => qById[q.id] = q);
+  box.innerHTML = resps.map(r => {
+    const qaHtml = Object.entries(r.answers).map(([qid, ans]) => {
+      const q = qById[qid];
+      const qText = q ? q.text : qid;
+      const isChoice = q && q.type === 'choice';
+      return `<div class="resp-qa">
+        <div class="q">${esc(qText)}</div>
+        <div class="a ${isChoice?'choice':''}">${esc(ans)}</div>
+      </div>`;
+    }).join('');
+    return `<div class="resp-card">
+      <div class="r-time">
+        <span>📩 ${fmtTime(r.submitted_at)}</span>
+        <button class="r-del" onclick="deleteResponse('${r.id}')" title="刪除這筆回覆">✕</button>
+      </div>
+      ${qaHtml}
+    </div>`;
+  }).join('');
+}
+async function deleteResponse(id){
+  if(!confirm('刪除這筆回覆?')) return;
+  try{
+    const {error} = await sb.from('shoot_form_responses').delete().eq('id', id);
+    if(error) throw error;
+    loadResponses();
+    toast('已刪除');
+  }catch(err){ toast('刪除失敗:'+err.message); }
+}
+
+/* ---------- boot ---------- */
+(async function(){
+  themeIcon && themeIcon();
+  try{
+    const {data} = await sb.auth.getSession();
+    if(data && data.session && data.session.user){
+      currentUser = data.session.user;
+      enterApp();
+      return;
+    }
+  }catch(e){ console.warn(e); }
+  $('login-screen').style.display='';
+})();
+// Allow Enter key on login
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && $('login-screen').style.display!=='none'){ doAuth(); }
+});
+</script>
+</body>
+</html>
