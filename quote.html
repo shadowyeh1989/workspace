@@ -1005,6 +1005,31 @@
   .gear-form input:focus, .gear-form select:focus { outline: none; border-color: var(--accent); }
   .gear-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+  /* Preset manager rows */
+  .preset-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 9px; margin-bottom: 6px;
+  }
+  .preset-row:last-child { margin-bottom: 0; }
+  .preset-row-main { flex: 1; min-width: 0; }
+  .preset-name-input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--ink); padding: 7px 10px; border-radius: 7px;
+    font-size: 13.5px; font-family: inherit; font-weight: 500;
+  }
+  .preset-name-input:focus { outline: none; border-color: var(--accent); }
+  .preset-row-preview {
+    font-size: 11px; color: var(--faint); margin-top: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .preset-row-del {
+    background: transparent; border: 1px solid var(--border); color: var(--faint);
+    width: 28px; height: 28px; border-radius: 6px; font-size: 12px;
+    line-height: 1; padding: 0; flex-shrink: 0; cursor: pointer;
+  }
+  .preset-row-del:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+
   @media (max-width: 880px) {
     .view-tabs-inner { padding: 0 16px; }
     .gear-main { padding: 14px 16px 60px; }
@@ -1396,6 +1421,17 @@
       <button class="btn" id="tipEditResetBtn">重設為預設</button>
       <button class="btn" id="tipEditCancelBtn">取消</button>
       <button class="btn primary" id="tipEditSaveBtn">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gear preset manager modal -->
+<div class="modal-overlay" id="gearPresetModal">
+  <div class="modal">
+    <h3>管理常用組合</h3>
+    <div id="gearPresetManageList"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeGearPresetModal()">關閉</button>
     </div>
   </div>
 </div>
@@ -2771,7 +2807,7 @@ function renderGearPresetPicker() {
     state.gearPresets.map(p =>
       `<option value="${p.id}">${escapeHtml(p.name)} (${p.items.length} 項)</option>`
     ).join('') +
-    (state.gearPresets.length ? '<option value="__manage__">— 管理組合 —</option>' : '');
+    (state.gearPresets.length ? '<option value="__manage__">⚙ 管理 / 改名組合…</option>' : '');
 }
 function saveGearPreset() {
   if (state.gearKit.length === 0) { showToast('清單是空的,先加器材再存'); return; }
@@ -2816,17 +2852,62 @@ function loadGearPreset(id) {
 }
 function manageGearPresets() {
   if (state.gearPresets.length === 0) return;
-  const names = state.gearPresets.map((p, i) => `${i + 1}. ${p.name} (${p.items.length} 項)`).join('\n');
-  const pick = prompt(`要刪除哪個組合?輸入編號:\n\n${names}`);
-  if (!pick) return;
-  const idx = parseInt(pick, 10) - 1;
-  if (isNaN(idx) || idx < 0 || idx >= state.gearPresets.length) { showToast('編號不正確'); return; }
-  const p = state.gearPresets[idx];
+  renderGearPresetManageList();
+  document.getElementById('gearPresetModal').classList.add('show');
+}
+function closeGearPresetModal() {
+  document.getElementById('gearPresetModal').classList.remove('show');
+}
+function renderGearPresetManageList() {
+  const box = document.getElementById('gearPresetManageList');
+  if (!box) return;
+  if (state.gearPresets.length === 0) {
+    box.innerHTML = `<div class="kit-empty" style="padding:24px">還沒有任何組合</div>`;
+    return;
+  }
+  box.innerHTML = state.gearPresets.map(p => {
+    // Show what's inside so the name change is made with context
+    const preview = p.items
+      .map(i => { const g = gearById(i.gearId); return g ? g.name : null; })
+      .filter(Boolean).slice(0, 4).join('、');
+    const more = p.items.length > 4 ? ` …+${p.items.length - 4}` : '';
+    return `<div class="preset-row">
+      <div class="preset-row-main">
+        <input type="text" class="preset-name-input" value="${escapeHtml(p.name)}"
+               onchange="renameGearPreset('${p.id}', this.value)"
+               onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="preset-row-preview">${escapeHtml(preview)}${more} · ${p.items.length} 項</div>
+      </div>
+      <button class="preset-row-del" onclick="deleteGearPreset('${p.id}')" title="刪除組合">✕</button>
+    </div>`;
+  }).join('');
+}
+function renameGearPreset(id, newName) {
+  const p = state.gearPresets.find(x => x.id === id);
+  if (!p) return;
+  const trimmed = (newName || '').trim();
+  if (!trimmed) { showToast('名稱不能空白'); renderGearPresetManageList(); return; }
+  if (trimmed === p.name) return;
+  if (state.gearPresets.some(x => x.id !== id && x.name === trimmed)) {
+    showToast('已有同名組合,請換個名字');
+    renderGearPresetManageList();
+    return;
+  }
+  p.name = trimmed;
+  saveState();
+  renderGearPresetPicker();
+  showToast('✓ 已改名');
+}
+function deleteGearPreset(id) {
+  const p = state.gearPresets.find(x => x.id === id);
+  if (!p) return;
   showConfirm('刪除組合', `確定刪除組合「${p.name}」?`, () => {
-    state.gearPresets.splice(idx, 1);
+    state.gearPresets = state.gearPresets.filter(x => x.id !== id);
     saveState();
     renderGearPresetPicker();
+    renderGearPresetManageList();
     showToast('已刪除組合');
+    if (state.gearPresets.length === 0) closeGearPresetModal();
   });
 }
 
