@@ -882,7 +882,151 @@
   }
 
   /* Mobile responsive */
+  /* ===== View tabs ===== */
+  .view-tabs { border-bottom: 1px solid var(--border); margin-bottom: 0; }
+  .view-tabs-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; display: flex; gap: 4px; }
+  .view-tab {
+    background: transparent; border: none; border-bottom: 2px solid transparent;
+    color: var(--muted); padding: 12px 16px; font-size: 14px; font-family: inherit;
+    cursor: pointer; transition: color .13s, border-color .13s;
+  }
+  .view-tab:hover { color: var(--ink); }
+  .view-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  /* ===== Gear view ===== */
+  .gear-main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 80px; display: flex; flex-direction: column; gap: 18px; }
+  .gear-panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow);
+  }
+  .gear-panel-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap; margin-bottom: 16px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  }
+  .gear-panel-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .gear-panel-actions select, .gear-add-row select {
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--ink);
+    padding: 8px 12px; border-radius: 8px; font-size: 13px; font-family: inherit; cursor: pointer;
+  }
+  .gear-panel-actions select:focus, .gear-add-row select:focus { outline: none; border-color: var(--accent); }
+
+  .gear-add-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .gear-add-row select { flex: 1; min-width: 0; }
+
+  /* Kit lines */
+  .kit-line {
+    display: grid;
+    /* 6 items: name | unit | qty spin | days spin | subtotal | delete
+       (.kl-spins uses display:contents so its two spans are direct grid items) */
+    grid-template-columns: 1fr auto auto auto auto auto;
+    align-items: center; gap: 12px;
+    padding: 11px 14px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 9px; margin-bottom: 6px;
+  }
+  .kit-line .kl-name { min-width: 0; }
+  .kit-line .kl-name .n { font-size: 14px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kit-line .kl-name .c { font-size: 11px; color: var(--faint); margin-top: 1px; }
+  .kit-line .kl-unit { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .kit-spin { display: inline-flex; align-items: center; gap: 3px; }
+  .kit-spin label { font-size: 10px; color: var(--faint); letter-spacing: .08em; text-transform: uppercase; margin-right: 2px; }
+  .kit-spin input {
+    width: 52px; background: var(--surface); border: 1px solid var(--border); color: var(--ink);
+    padding: 5px 6px; border-radius: 6px; font-size: 13px; font-family: var(--mono); text-align: center;
+  }
+  .kit-spin input:focus { outline: none; border-color: var(--accent); }
+  .kit-line .kl-sub {
+    font-family: var(--mono); font-feature-settings: "tnum";
+    font-size: 14px; color: var(--accent); font-weight: 500;
+    text-align: right; min-width: 92px; white-space: nowrap;
+  }
+  .kit-line .kl-del {
+    background: transparent; border: 1px solid var(--border); color: var(--faint);
+    width: 26px; height: 26px; border-radius: 6px; font-size: 12px; line-height: 1; padding: 0;
+  }
+  .kit-line .kl-del:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .kit-empty { padding: 34px 14px; text-align: center; color: var(--faint); font-size: 13.5px; }
+
+  .kit-total { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .kit-total-rows { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
+  .kit-total-rows .tr-item { display: flex; flex-direction: column; gap: 1px; }
+  .kit-total-rows .tr-item .l { font-size: 10px; color: var(--faint); letter-spacing: .1em; text-transform: uppercase; }
+  .kit-total-rows .tr-item .n { font-family: var(--mono); font-size: 14px; color: var(--ink); }
+  .kit-total-main {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+    padding: 13px 16px; background: var(--accent-soft, rgba(212,160,92,.12));
+    border: 1px solid var(--accent); border-radius: 10px;
+  }
+  .kit-total-main .l { font-size: 13px; color: var(--ink); }
+  .kit-total-main .n { font-family: var(--mono); font-feature-settings: "tnum"; font-size: 22px; font-weight: 600; color: var(--accent); }
+  .kit-total-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+
+  /* Gear inventory table */
+  .gear-table { width: 100%; border-collapse: collapse; }
+  .gear-table th {
+    text-align: left; font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--faint); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  .gear-table td { padding: 11px 10px; border-bottom: 1px solid var(--border); font-size: 13.5px; vertical-align: middle; }
+  .gear-table tr:last-child td { border-bottom: none; }
+  .gear-table tr:hover td { background: var(--surface-2); }
+  .gear-table .g-name { font-weight: 500; color: var(--ink); }
+  .gear-table .g-cat {
+    display: inline-block; font-size: 11px; color: var(--muted);
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .gear-table .g-price { font-family: var(--mono); font-feature-settings: "tnum"; color: var(--accent); text-align: right; white-space: nowrap; }
+  .gear-table .g-notes { font-size: 12px; color: var(--faint); }
+  .gear-table .g-actions { text-align: right; white-space: nowrap; }
+  .gear-table .g-actions button {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    padding: 3px 9px; border-radius: 6px; font-size: 11.5px; margin-left: 4px;
+  }
+  .gear-table .g-actions button:hover { color: var(--ink); border-color: var(--faint); }
+  .gear-table .g-actions button.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .gear-cat-header td {
+    background: var(--surface-2); font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 7px 10px !important;
+  }
+
+  /* Gear form */
+  .gear-form {
+    background: var(--surface-2); border: 1px solid var(--accent);
+    border-radius: 11px; padding: 16px; margin-bottom: 16px;
+  }
+  .gear-form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr; gap: 10px; margin-bottom: 12px; }
+  .gear-form-grid > div { min-width: 0; }
+  .gear-form label { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+  .gear-form input, .gear-form select {
+    width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--ink);
+    padding: 8px 11px; border-radius: 7px; font-size: 13.5px; font-family: inherit;
+  }
+  .gear-form input:focus, .gear-form select:focus { outline: none; border-color: var(--accent); }
+  .gear-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
   @media (max-width: 880px) {
+    .view-tabs-inner { padding: 0 16px; }
+    .gear-main { padding: 14px 16px 60px; }
+    .gear-panel { padding: 16px; }
+    .gear-panel-head { flex-direction: column; align-items: stretch; }
+    .gear-panel-actions { justify-content: flex-start; }
+    .gear-panel-actions .search-box { flex: 1; min-width: 0; }
+    .gear-form-grid { grid-template-columns: 1fr 1fr; }
+    .kit-line {
+      grid-template-columns: 1fr auto;
+      grid-template-areas: "name del" "unit unit" "spins sub";
+      row-gap: 8px;
+    }
+    .kit-line .kl-name { grid-area: name; }
+    .kit-line .kl-del { grid-area: del; }
+    .kit-line .kl-unit { grid-area: unit; }
+    .kit-line .kl-spins {
+      /* Beats the inline display:contents used for the desktop grid layout */
+      grid-area: spins; display: flex !important; gap: 10px; align-items: center;
+    }
+    .kit-line .kl-sub { grid-area: sub; }
+    .gear-table .g-notes-col { display: none; }
     /* Hide desktop-only auto-backup badge on mobile (FSA API isn't supported there) */
     .backup-badge-wrap { display: none !important; }
     .app-header { padding: 16px 16px 0; }
@@ -1103,8 +1247,16 @@
   </div>
 </header>
 
+<!-- View tabs -->
+<div class="view-tabs">
+  <div class="view-tabs-inner">
+    <button class="view-tab active" data-view="quote" onclick="switchView('quote')">報價項目</button>
+    <button class="view-tab" data-view="gear" onclick="switchView('gear')">器材出機清單</button>
+  </div>
+</div>
+
 <!-- Main -->
-<main class="app-main">
+<main class="app-main" id="view-quote">
   <!-- Sidebar -->
   <aside class="sidebar">
     <div>
@@ -1176,6 +1328,62 @@
   </section>
 </main>
 
+<!-- ===== GEAR VIEW ===== -->
+<main class="gear-main" id="view-gear" style="display:none">
+
+  <!-- Kit calculator -->
+  <section class="gear-panel">
+    <div class="gear-panel-head">
+      <div>
+        <h2 class="content-title">這次出機</h2>
+        <div class="content-sub">— KIT CALCULATOR —</div>
+      </div>
+      <div class="gear-panel-actions">
+        <select id="gearPresetPick" onchange="loadGearPreset(this.value)">
+          <option value="">載入常用組合…</option>
+        </select>
+        <button class="btn" onclick="saveGearPreset()">💾 存成組合</button>
+        <button class="btn" onclick="clearGearKit()">清空</button>
+      </div>
+    </div>
+
+    <div class="gear-add-row">
+      <select id="gearAddPick"></select>
+      <button class="btn primary" onclick="addToKit()">＋ 加入清單</button>
+    </div>
+
+    <div id="kitList"></div>
+
+    <div class="kit-total" id="kitTotal" style="display:none">
+      <div class="kit-total-rows" id="kitTotalRows"></div>
+      <div class="kit-total-main">
+        <span class="l">器材出機費總計</span>
+        <span class="n" id="kitGrandTotal">NT$0</span>
+      </div>
+      <div class="kit-total-actions">
+        <button class="btn" onclick="copyKit()">⎘ 複製清單</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gear inventory -->
+  <section class="gear-panel">
+    <div class="gear-panel-head">
+      <div>
+        <h2 class="content-title">器材清單</h2>
+        <div class="content-sub">— INVENTORY · DAY RATE —</div>
+      </div>
+      <div class="gear-panel-actions">
+        <input type="text" class="search-box" id="gearSearch" placeholder="搜尋器材…" oninput="renderGearTable()">
+        <button class="btn primary" onclick="openGearForm()">+ 新增器材</button>
+      </div>
+    </div>
+
+    <div id="gearFormWrap"></div>
+    <div id="gearTableWrap"></div>
+  </section>
+</main>
+
 <!-- Tip editor modal -->
 <div class="modal-overlay" id="tipEditModal">
   <div class="modal">
@@ -1236,8 +1444,18 @@ function defaultState() {
     ],
     items: [],
     activeCategoryId: 'cat_default',
-    tipChecklist: defaultTipChecklist()
+    tipChecklist: defaultTipChecklist(),
+    // Gear inventory: what each piece would cost to rent for one day.
+    // Used to price the equipment portion of a shoot as if nothing were owned.
+    gear: [],
+    gearCategories: defaultGearCategories(),
+    gearKit: [],        // current working kit: [{gearId, qty, days}]
+    gearPresets: []     // saved combos: [{id, name, items:[{gearId, qty, days}]}]
   };
+}
+
+function defaultGearCategories() {
+  return ['機身', '鏡頭', '燈光', '收音', '腳架 / 穩定', '電力 / 儲存', '其他'];
 }
 
 function defaultTipChecklist() {
@@ -1300,6 +1518,30 @@ function migrateState(s) {
   if (!Array.isArray(s.tipChecklist)) {
     s.tipChecklist = defaultTipChecklist();
   }
+  // --- gear inventory migration (added later; older saves won't have these) ---
+  if (!Array.isArray(s.gearCategories) || s.gearCategories.length === 0) {
+    s.gearCategories = defaultGearCategories();
+  }
+  if (!Array.isArray(s.gear)) s.gear = [];
+  s.gear.forEach(g => {
+    if (!g.id) g.id = 'g_' + uid();
+    if (!g.name) g.name = '';
+    if (g.price == null) g.price = 0;
+    if (!g.category || !s.gearCategories.includes(g.category)) g.category = s.gearCategories[0];
+    if (!g.notes) g.notes = '';
+  });
+  if (!Array.isArray(s.gearKit)) s.gearKit = [];
+  // Drop kit lines whose gear was deleted
+  s.gearKit = s.gearKit.filter(k => s.gear.some(g => g.id === k.gearId));
+  s.gearKit.forEach(k => {
+    k.qty = Math.max(1, parseInt(k.qty, 10) || 1);
+    k.days = Math.max(1, parseFloat(k.days) || 1);
+  });
+  if (!Array.isArray(s.gearPresets)) s.gearPresets = [];
+  s.gearPresets.forEach(p => {
+    if (!p.id) p.id = 'gp_' + uid();
+    if (!Array.isArray(p.items)) p.items = [];
+  });
   return s;
 }
 function saveState() {
@@ -2241,6 +2483,351 @@ function renderAll() {
   renderTipChecklist();
   renderContentHeader();
   renderTable();
+  renderGearAll();
+}
+
+/* ============ GEAR / KIT ============ */
+let activeView = 'quote';
+let editingGearId = null;
+
+function switchView(v) {
+  activeView = v;
+  document.getElementById('view-quote').style.display = (v === 'quote') ? '' : 'none';
+  document.getElementById('view-gear').style.display  = (v === 'gear')  ? '' : 'none';
+  document.querySelectorAll('.view-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === v);
+  });
+  try { localStorage.setItem('shadow_quote_active_view', v); } catch (e) {}
+  if (v === 'gear') renderGearAll();
+}
+
+function renderGearAll() {
+  renderGearTable();
+  renderGearAddPicker();
+  renderKit();
+  renderGearPresetPicker();
+}
+
+function gearById(id) { return state.gear.find(g => g.id === id); }
+function gearPrice(g) { const n = parseFloat(g.price); return isNaN(n) ? 0 : n; }
+function money(n) { return 'NT$' + Math.round(n).toLocaleString('en-US'); }
+
+/* ---- inventory ---- */
+function renderGearTable() {
+  const wrap = document.getElementById('gearTableWrap');
+  if (!wrap) return;
+  const q = (document.getElementById('gearSearch')?.value || '').trim().toLowerCase();
+  let list = state.gear.slice();
+  if (q) {
+    list = list.filter(g =>
+      g.name.toLowerCase().includes(q) ||
+      (g.notes || '').toLowerCase().includes(q) ||
+      (g.category || '').toLowerCase().includes(q)
+    );
+  }
+  if (list.length === 0) {
+    wrap.innerHTML = state.gear.length === 0
+      ? `<div class="kit-empty">還沒有器材。按「+ 新增器材」把你的裝備一件一件加進來,<br>填上「如果用租的一天要多少錢」。</div>`
+      : `<div class="kit-empty">沒有符合的器材</div>`;
+    return;
+  }
+  // Group by category, in the order defined by gearCategories
+  const grouped = {};
+  list.forEach(g => { (grouped[g.category] = grouped[g.category] || []).push(g); });
+  const order = state.gearCategories.filter(c => grouped[c]);
+  Object.keys(grouped).forEach(c => { if (!order.includes(c)) order.push(c); });
+
+  let rows = '';
+  order.forEach(cat => {
+    const inCat = grouped[cat];
+    const catSum = inCat.reduce((s, g) => s + gearPrice(g), 0);
+    rows += `<tr class="gear-cat-header"><td colspan="5">${escapeHtml(cat)} · ${inCat.length} 件 · ${money(catSum)}/日</td></tr>`;
+    inCat.forEach(g => {
+      rows += `<tr>
+        <td class="g-name">${escapeHtml(g.name)}</td>
+        <td><span class="g-cat">${escapeHtml(g.category)}</span></td>
+        <td class="g-price">${money(gearPrice(g))}<span style="color:var(--faint);font-size:11px"> /日</span></td>
+        <td class="g-notes g-notes-col">${escapeHtml(g.notes || '')}</td>
+        <td class="g-actions">
+          <button onclick="quickAddToKit('${g.id}')" title="加入這次出機">＋ 加入</button>
+          <button onclick="openGearForm('${g.id}')">編輯</button>
+          <button class="danger" onclick="deleteGear('${g.id}')">刪除</button>
+        </td>
+      </tr>`;
+    });
+  });
+
+  const allSum = state.gear.reduce((s, g) => s + gearPrice(g), 0);
+  wrap.innerHTML = `
+    <table class="gear-table">
+      <thead><tr>
+        <th>器材</th><th>分類</th><th style="text-align:right">出機費 / 日</th>
+        <th class="g-notes-col">備註</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)">
+      <span>全部器材 ${state.gear.length} 件</span>
+      <span>全數出機一日總值 <strong style="color:var(--accent);font-family:var(--mono)">${money(allSum)}</strong></span>
+    </div>`;
+}
+
+function openGearForm(id) {
+  editingGearId = id || null;
+  const g = id ? gearById(id) : null;
+  const catOpts = state.gearCategories.map(c =>
+    `<option value="${escapeHtml(c)}" ${g && g.category === c ? 'selected' : ''}>${escapeHtml(c)}</option>`
+  ).join('');
+  document.getElementById('gearFormWrap').innerHTML = `
+    <div class="gear-form">
+      <div class="gear-form-grid">
+        <div><label>器材名稱 *</label><input type="text" id="gfName" value="${g ? escapeHtml(g.name) : ''}" placeholder="例如:Sony FX3"></div>
+        <div><label>分類</label><select id="gfCat">${catOpts}</select></div>
+        <div><label>出機費 / 日 *</label><input type="text" id="gfPrice" value="${g ? g.price : ''}" placeholder="3000" inputmode="numeric"></div>
+        <div><label>備註</label><input type="text" id="gfNotes" value="${g ? escapeHtml(g.notes || '') : ''}" placeholder="含電池 ×3、記憶卡"></div>
+      </div>
+      <div class="gear-form-actions">
+        <button class="btn" onclick="closeGearForm()">取消</button>
+        <button class="btn primary" onclick="saveGear()">${g ? '更新' : '新增'}</button>
+      </div>
+    </div>`;
+  document.getElementById('gfName').focus();
+}
+function closeGearForm() {
+  editingGearId = null;
+  document.getElementById('gearFormWrap').innerHTML = '';
+}
+function saveGear() {
+  const name = document.getElementById('gfName').value.trim();
+  const category = document.getElementById('gfCat').value;
+  const priceRaw = document.getElementById('gfPrice').value.trim();
+  const notes = document.getElementById('gfNotes').value.trim();
+  if (!name) { showToast('請填器材名稱'); document.getElementById('gfName').focus(); return; }
+  const price = parseFloat(priceRaw.replace(/[^0-9.]/g, ''));
+  if (isNaN(price)) { showToast('請填出機費 (數字)'); document.getElementById('gfPrice').focus(); return; }
+
+  if (editingGearId) {
+    const g = gearById(editingGearId);
+    if (g) Object.assign(g, { name, category, price, notes });
+    showToast('✓ 已更新');
+  } else {
+    state.gear.push({ id: 'g_' + uid(), name, category, price, notes });
+    showToast('✓ 已新增');
+  }
+  saveState();
+  closeGearForm();
+  renderGearAll();
+}
+function deleteGear(id) {
+  const g = gearById(id);
+  if (!g) return;
+  const inKit = state.gearKit.some(k => k.gearId === id);
+  showConfirm('刪除器材', `確定刪除「${g.name}」?${inKit ? '\n這件器材目前在出機清單中,也會一併移除。' : ''}`, () => {
+    state.gear = state.gear.filter(x => x.id !== id);
+    state.gearKit = state.gearKit.filter(k => k.gearId !== id);
+    state.gearPresets.forEach(p => { p.items = p.items.filter(i => i.gearId !== id); });
+    saveState();
+    renderGearAll();
+    showToast('已刪除');
+  });
+}
+
+/* ---- kit ---- */
+function renderGearAddPicker() {
+  const sel = document.getElementById('gearAddPick');
+  if (!sel) return;
+  if (state.gear.length === 0) {
+    sel.innerHTML = '<option value="">(尚無器材,請先在下方新增)</option>';
+    return;
+  }
+  const grouped = {};
+  state.gear.forEach(g => { (grouped[g.category] = grouped[g.category] || []).push(g); });
+  const order = state.gearCategories.filter(c => grouped[c]);
+  Object.keys(grouped).forEach(c => { if (!order.includes(c)) order.push(c); });
+  sel.innerHTML = '<option value="">選擇器材加入…</option>' + order.map(cat =>
+    `<optgroup label="${escapeHtml(cat)}">` +
+    grouped[cat].map(g => {
+      const already = state.gearKit.some(k => k.gearId === g.id);
+      return `<option value="${g.id}">${escapeHtml(g.name)} — ${money(gearPrice(g))}${already ? ' ✓已在清單' : ''}</option>`;
+    }).join('') + '</optgroup>'
+  ).join('');
+}
+
+function addToKit() {
+  const sel = document.getElementById('gearAddPick');
+  const id = sel.value;
+  if (!id) { showToast('請先選一件器材'); return; }
+  quickAddToKit(id);
+  sel.value = '';
+}
+function quickAddToKit(id) {
+  const g = gearById(id);
+  if (!g) return;
+  const existing = state.gearKit.find(k => k.gearId === id);
+  if (existing) {
+    existing.qty += 1;
+    showToast(`「${g.name}」數量 +1`);
+  } else {
+    // Inherit days from the first line so multi-day kits stay consistent
+    const days = state.gearKit.length > 0 ? state.gearKit[0].days : 1;
+    state.gearKit.push({ gearId: id, qty: 1, days });
+    showToast(`已加入「${g.name}」`);
+  }
+  saveState();
+  renderKit();
+  renderGearAddPicker();
+}
+function updateKitLine(id, field, value) {
+  const k = state.gearKit.find(x => x.gearId === id);
+  if (!k) return;
+  const n = parseFloat(value);
+  if (field === 'qty') k.qty = Math.max(1, Math.round(isNaN(n) ? 1 : n));
+  if (field === 'days') k.days = Math.max(0.5, isNaN(n) ? 1 : n);
+  saveState();
+  renderKit();
+}
+function removeKitLine(id) {
+  state.gearKit = state.gearKit.filter(k => k.gearId !== id);
+  saveState();
+  renderKit();
+  renderGearAddPicker();
+}
+function clearGearKit() {
+  if (state.gearKit.length === 0) return;
+  showConfirm('清空出機清單', '確定清空目前的出機清單?', () => {
+    state.gearKit = [];
+    saveState();
+    renderKit();
+    renderGearAddPicker();
+    showToast('已清空');
+  });
+}
+
+function renderKit() {
+  const box = document.getElementById('kitList');
+  const totalBox = document.getElementById('kitTotal');
+  if (!box) return;
+  if (state.gearKit.length === 0) {
+    box.innerHTML = `<div class="kit-empty">還沒有選任何器材。<br>從上面下拉選單挑器材,或在下方清單按「＋ 加入」。</div>`;
+    totalBox.style.display = 'none';
+    return;
+  }
+  let grand = 0, pieces = 0;
+  box.innerHTML = state.gearKit.map(k => {
+    const g = gearById(k.gearId);
+    if (!g) return '';
+    const unit = gearPrice(g);
+    const sub = unit * k.qty * k.days;
+    grand += sub;
+    pieces += k.qty;
+    return `<div class="kit-line">
+      <div class="kl-name">
+        <div class="n">${escapeHtml(g.name)}</div>
+        <div class="c">${escapeHtml(g.category)}</div>
+      </div>
+      <div class="kl-unit">${money(unit)} /日</div>
+      <div class="kl-spins" style="display:contents">
+        <span class="kit-spin"><label>數量</label><input type="number" min="1" step="1" value="${k.qty}" onchange="updateKitLine('${k.gearId}','qty',this.value)"></span>
+        <span class="kit-spin"><label>天數</label><input type="number" min="0.5" step="0.5" value="${k.days}" onchange="updateKitLine('${k.gearId}','days',this.value)"></span>
+      </div>
+      <div class="kl-sub">${money(sub)}</div>
+      <button class="kl-del" onclick="removeKitLine('${k.gearId}')" title="移除">✕</button>
+    </div>`;
+  }).join('');
+
+  const maxDays = Math.max(...state.gearKit.map(k => k.days));
+  document.getElementById('kitTotalRows').innerHTML = `
+    <div class="tr-item"><span class="l">品項</span><span class="n">${state.gearKit.length} 項</span></div>
+    <div class="tr-item"><span class="l">總件數</span><span class="n">${pieces} 件</span></div>
+    <div class="tr-item"><span class="l">最長天數</span><span class="n">${maxDays} 天</span></div>`;
+  document.getElementById('kitGrandTotal').textContent = money(grand);
+  totalBox.style.display = '';
+}
+
+function copyKit() {
+  if (state.gearKit.length === 0) { showToast('清單是空的'); return; }
+  let grand = 0;
+  const lines = state.gearKit.map(k => {
+    const g = gearById(k.gearId);
+    if (!g) return null;
+    const sub = gearPrice(g) * k.qty * k.days;
+    grand += sub;
+    const mult = [];
+    if (k.qty !== 1) mult.push('×' + k.qty);
+    if (k.days !== 1) mult.push(k.days + ' 天');
+    return `${g.name}${mult.length ? ' (' + mult.join(' · ') + ')' : ''}\n${money(sub)}`;
+  }).filter(Boolean);
+  const text = lines.join('\n\n') + '\n\n────\n器材出機費總計: ' + money(grand);
+  navigator.clipboard.writeText(text)
+    .then(() => showToast('✓ 已複製出機清單'))
+    .catch(() => showToast('複製失敗'));
+}
+
+/* ---- presets ---- */
+function renderGearPresetPicker() {
+  const sel = document.getElementById('gearPresetPick');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">載入常用組合…</option>' +
+    state.gearPresets.map(p =>
+      `<option value="${p.id}">${escapeHtml(p.name)} (${p.items.length} 項)</option>`
+    ).join('') +
+    (state.gearPresets.length ? '<option value="__manage__">— 管理組合 —</option>' : '');
+}
+function saveGearPreset() {
+  if (state.gearKit.length === 0) { showToast('清單是空的,先加器材再存'); return; }
+  const name = prompt('組合名稱?(例如:訪談基本組)');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  const existing = state.gearPresets.find(p => p.name === trimmed);
+  const items = state.gearKit.map(k => ({ gearId: k.gearId, qty: k.qty, days: k.days }));
+  if (existing) {
+    if (!confirm(`已有同名組合「${trimmed}」,要覆蓋嗎?`)) return;
+    existing.items = items;
+    showToast('✓ 已覆蓋組合');
+  } else {
+    state.gearPresets.push({ id: 'gp_' + uid(), name: trimmed, items });
+    showToast('✓ 已存成組合');
+  }
+  saveState();
+  renderGearPresetPicker();
+}
+function loadGearPreset(id) {
+  const sel = document.getElementById('gearPresetPick');
+  if (!id) return;
+  if (id === '__manage__') { sel.value = ''; manageGearPresets(); return; }
+  const p = state.gearPresets.find(x => x.id === id);
+  sel.value = '';
+  if (!p) return;
+  const apply = () => {
+    // Skip gear that no longer exists
+    state.gearKit = p.items
+      .filter(i => gearById(i.gearId))
+      .map(i => ({ gearId: i.gearId, qty: i.qty, days: i.days }));
+    saveState();
+    renderKit();
+    renderGearAddPicker();
+    showToast(`已載入「${p.name}」`);
+  };
+  if (state.gearKit.length > 0) {
+    showConfirm('載入組合', `載入「${p.name}」會覆蓋目前的出機清單,確定?`, apply);
+  } else {
+    apply();
+  }
+}
+function manageGearPresets() {
+  if (state.gearPresets.length === 0) return;
+  const names = state.gearPresets.map((p, i) => `${i + 1}. ${p.name} (${p.items.length} 項)`).join('\n');
+  const pick = prompt(`要刪除哪個組合?輸入編號:\n\n${names}`);
+  if (!pick) return;
+  const idx = parseInt(pick, 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= state.gearPresets.length) { showToast('編號不正確'); return; }
+  const p = state.gearPresets[idx];
+  showConfirm('刪除組合', `確定刪除組合「${p.name}」?`, () => {
+    state.gearPresets.splice(idx, 1);
+    saveState();
+    renderGearPresetPicker();
+    showToast('已刪除組合');
+  });
 }
 
 function renderTipChecklist() {
@@ -2499,6 +3086,12 @@ function wireEvents() {
     searchQuery = e.target.value.trim();
     renderAll();
   });
+
+  // Restore whichever tab was open last time
+  try {
+    const savedView = localStorage.getItem('shadow_quote_active_view');
+    if (savedView === 'gear') switchView('gear');
+  } catch (e) {}
 
   // User pill
   document.getElementById('userPill').addEventListener('click', toggleUserMenu);
