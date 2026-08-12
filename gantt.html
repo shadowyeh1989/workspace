@@ -293,6 +293,10 @@ function App(){
   const [syncStatus,setSyncStatus]=useState('offline'); // synced | syncing | offline | error
   const [offlineMode,setOfflineMode]=useState(false);
   const [cloudLastSavedAt,setCloudLastSavedAt]=useState(null);
+  // Mirror in a ref: async sync code needs the current value, and reading React
+  // state inside an async closure gives a stale snapshot.
+  const cloudLastSavedAtRef=useRef(null);
+  function updateCloudLastSavedAt(v){ cloudLastSavedAtRef.current=v; setCloudLastSavedAt(v); }
   const [bMeta,setBMeta]=useState(getBackupMeta());
   const [bMenuOpen,setBMenuOpen]=useState(false);
   const [userMenuOpen,setUserMenuOpen]=useState(false);
@@ -446,7 +450,7 @@ function App(){
       if(error)throw error;
       setSyncStatus('synced');
       if(!data)return null;
-      setCloudLastSavedAt(data.updated_at);
+      updateCloudLastSavedAt(data.updated_at);
       return data.data;
     }catch(e){
       console.error('Load from cloud failed',e);
@@ -465,6 +469,21 @@ function App(){
     cloudSyncInFlightRef.current=true;
     setSyncStatus('syncing');
     try{
+      // CONFLICT GUARD — don't let a stale tab overwrite newer work from another device
+      const {data:remote,error:readErr}=await sbClient.from(CLOUD_TABLE)
+        .select('updated_at')
+        .eq('user_id',currentUser.id)
+        .maybeSingle();
+      if(readErr)throw readErr;
+      const ourBase=cloudLastSavedAtRef.current;
+      if(remote&&remote.updated_at&&ourBase){
+        if(new Date(remote.updated_at).getTime() > new Date(ourBase).getTime()+2000){
+          cloudSyncInFlightRef.current=false;
+          setSyncStatus('error');
+          handleCloudConflict(remote.updated_at);
+          return;
+        }
+      }
       // Read latest workspaces array from localStorage (most up-to-date)
       const wsListRaw=localStorage.getItem('gantt-workspaces')||'[]';
       const wsList=JSON.parse(wsListRaw);
@@ -476,7 +495,7 @@ function App(){
         updated_at:new Date().toISOString()
       },{onConflict:'user_id'});
       if(error)throw error;
-      setCloudLastSavedAt(new Date().toISOString());
+      updateCloudLastSavedAt(new Date().toISOString());
       setSyncStatus('synced');
     }catch(e){
       console.error('Save to cloud failed',e);
@@ -486,11 +505,68 @@ function App(){
     }
   }
 
+  function handleCloudConflict(remoteUpdatedAt){
+    const when=new Date(remoteUpdatedAt).toLocaleString('zh-TW',{hour12:false});
+    const keepMine=confirm(
+      '⚠️ 同步衝突\n\n'+
+      `另一台裝置在 ${when} 更新了資料,比這個分頁的版本新。\n\n`+
+      '按「確定」= 用這個分頁的版本覆蓋雲端 (雲端那份會消失)\n'+
+      '按「取消」= 放棄這個分頁的變更,重新載入雲端最新版\n\n'+
+      '如果不確定,建議先按「取消」載入最新版,再檢查缺什麼。'
+    );
+    if(keepMine){
+      updateCloudLastSavedAt(remoteUpdatedAt);
+      scheduleCloudSync();
+    } else {
+      location.reload();
+    }
+  }
+
   function scheduleCloudSync(){
     if(!currentUser||offlineMode)return;
     if(cloudSyncTimerRef.current)clearTimeout(cloudSyncTimerRef.current);
     cloudSyncTimerRef.current=setTimeout(saveToCloud,CLOUD_SYNC_DEBOUNCE_MS);
   }
+
+  // ===== Sync safety: flush on hide, check for remote updates on return =====
+  useEffect(()=>{
+    let lastVisibleCheck=Date.now();
+    function flushPendingSync(){
+      if(!currentUser||offlineMode)return;
+      if(!cloudSyncTimerRef.current)return;
+      clearTimeout(cloudSyncTimerRef.current);
+      cloudSyncTimerRef.current=null;
+      saveToCloud();
+    }
+    async function onVisibility(){
+      if(document.visibilityState==='hidden'){ flushPendingSync(); return; }
+      if(!currentUser||offlineMode||!sbClient)return;
+      const awayMs=Date.now()-lastVisibleCheck;
+      lastVisibleCheck=Date.now();
+      if(awayMs<30000)return;
+      try{
+        const {data:remote,error}=await sbClient.from(CLOUD_TABLE)
+          .select('updated_at').eq('user_id',currentUser.id).maybeSingle();
+        const ourBase=cloudLastSavedAtRef.current;
+        if(error||!remote||!remote.updated_at||!ourBase)return;
+        if(new Date(remote.updated_at).getTime() > new Date(ourBase).getTime()+2000){
+          const when=new Date(remote.updated_at).toLocaleString('zh-TW',{hour12:false});
+          if(confirm('☁️ 雲端有較新的資料\n\n'+`另一台裝置在 ${when} 更新了資料。\n\n`+
+                     '按「確定」重新載入最新版本。\n(如果這個分頁有未儲存的變更,重新載入後會消失)')){
+            location.reload();
+          }
+        }
+      }catch(e){}
+    }
+    document.addEventListener('visibilitychange',onVisibility);
+    window.addEventListener('pagehide',flushPendingSync);
+    window.addEventListener('beforeunload',flushPendingSync);
+    return ()=>{
+      document.removeEventListener('visibilitychange',onVisibility);
+      window.removeEventListener('pagehide',flushPendingSync);
+      window.removeEventListener('beforeunload',flushPendingSync);
+    };
+  },[currentUser,offlineMode]);
 
   // ===== Share (read-only public link) =====
   const SHARE_TABLE='shared_gantt';
