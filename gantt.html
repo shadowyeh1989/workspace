@@ -585,19 +585,32 @@ function App(){
   }
   async function loadShareInfo(){
     if(!sbClient||!currentUser||!wsId)return;
+    const requestedWsId=wsId;  // capture: user may switch again before this resolves
     try{
       const {data,error}=await sbClient.from(SHARE_TABLE)
-        .select('id,expires_at,created_at,updated_at,is_active')
+        .select('id,workspace_id,expires_at,created_at,updated_at,is_active')
         .eq('user_id',currentUser.id)
-        .eq('workspace_id',wsId)
+        .eq('workspace_id',requestedWsId)
         .eq('is_active',true)
         .maybeSingle();
       if(error&&error.code!=='PGRST116'){console.warn(error);return;}
+      // Discard a late response for a workspace we've already navigated away from
+      if(wsIdRef.current!==requestedWsId)return;
       setShareInfo(data||null);
     }catch(e){console.warn('loadShareInfo failed',e);}
   }
-  // Reload share info whenever workspace changes or user signs in
-  useEffect(()=>{loadShareInfo();},[wsId,currentUser]);
+  // Keep a ref of wsId so async callbacks can tell whether they're still current
+  const wsIdRef=useRef(wsId);
+  useEffect(()=>{wsIdRef.current=wsId;},[wsId]);
+
+  // Reload share info whenever workspace changes or user signs in.
+  // Clear it synchronously first: otherwise the save effect can fire with the
+  // PREVIOUS workspace's share record still in state, and push the new
+  // workspace's data into the old workspace's public link.
+  useEffect(()=>{
+    setShareInfo(null);
+    loadShareInfo();
+  },[wsId,currentUser]);
 
   // ===== Undo / Redo handlers =====
   function applyUndoSnapshot(snapStr){
@@ -681,7 +694,7 @@ function App(){
         is_active:true
       });
       if(error)throw error;
-      setShareInfo({id,expires_at:expiresAt,created_at:new Date().toISOString(),is_active:true});
+      setShareInfo({id,workspace_id:wsId,expires_at:expiresAt,created_at:new Date().toISOString(),is_active:true});
     }catch(e){
       console.error('Create share failed',e);
       alert('產生分享連結失敗:'+e.message);
@@ -692,6 +705,9 @@ function App(){
   async function refreshShareSnapshot(){
     // Push current state to existing share record so viewers see latest
     if(!sbClient||!currentUser||!shareInfo)return;
+    // Safety: never write this workspace's data into a share belonging to another one.
+    // shareInfo can briefly hold the previous workspace's record right after a switch.
+    if(shareInfo.workspace_id && shareInfo.workspace_id!==wsId)return;
     try{
       const ws=workspaces.find(w=>w.id===wsId);
       const wsName=ws?ws.name:'';
@@ -700,7 +716,10 @@ function App(){
         workspace_data:wsSnap,
         workspace_name:wsName,
         updated_at:new Date().toISOString()
-      }).eq('id',shareInfo.id).eq('user_id',currentUser.id);
+      })
+        .eq('id',shareInfo.id)
+        .eq('user_id',currentUser.id)
+        .eq('workspace_id',wsId);   // row won't match unless it's this workspace's share
       if(error)throw error;
     }catch(e){console.warn('refreshShareSnapshot failed',e);}
   }
