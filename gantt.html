@@ -402,11 +402,16 @@ function App(){
   useEffect(()=>{
     if(!loaded||!wsId)return;
     setSaveSt('saving');
+    // Bind the workspace this save belongs to. The timeout fires 700ms later and
+    // the user may have switched by then; without capturing, the write could be
+    // attributed to whatever workspace happens to be active at that moment.
+    const savingWsId=wsId;
+    const savingProjs=projs, savingTags=tags, savingTitle=title, savingNPid=nPid, savingNTid=nTid;
     const t=setTimeout(()=>{
       try{
         // === undo capture ===
         // Compare current state with last saved snapshot; if changed, push prev onto undo stack
-        const currSnap = JSON.stringify({projs,tags,title,nPid,nTid});
+        const currSnap = JSON.stringify({projs:savingProjs,tags:savingTags,title:savingTitle,nPid:savingNPid,nTid:savingNTid});
         if(!undoLockRef.current && lastSavedRef.current && currSnap !== lastSavedRef.current){
           const now = Date.now();
           // Merge rapid edits within UNDO_MERGE_MS_G into one undo entry
@@ -420,14 +425,20 @@ function App(){
         lastSavedRef.current = currSnap;
 
         setWorkspaces(wsList=>{
-          const updated=wsList.map(w=>w.id===wsId?{...w,projs,tags,title,nPid,nTid}:w);
+          const updated=wsList.map(w=>w.id===savingWsId?{...w,projs:savingProjs,tags:savingTags,title:savingTitle,nPid:savingNPid,nTid:savingNTid}:w);
           localStorage.setItem('gantt-workspaces',JSON.stringify(updated));
-          localStorage.setItem('gantt-ws-current',wsId);
+          localStorage.setItem('gantt-ws-current',savingWsId);
           // Schedule cloud sync and auto-backup
           scheduleCloudSync();
           scheduleAutoBackup();
-          // If this workspace is being shared, push the latest snapshot to the share record
-          refreshShareSnapshot();
+          // Keep this workspace's public share (if any) in sync — bound to savingWsId,
+          // so it can never write into a different workspace's share record.
+          const savedWs=updated.find(w=>w.id===savingWsId);
+          pushShareSnapshot(
+            savingWsId,
+            {projs:savingProjs,tags:savingTags,title:savingTitle,nPid:savingNPid,nTid:savingNTid,name:savedWs?savedWs.name:''},
+            savedWs?savedWs.name:''
+          );
           return updated;
         });
         setSaveSt('saved');
@@ -599,6 +610,28 @@ function App(){
       setShareInfo(data||null);
     }catch(e){console.warn('loadShareInfo failed',e);}
   }
+
+  // One-time repair: shares created before workspace_id existed have it NULL, which
+  // makes them unattributable — every workspace's save would match them. Adopt any
+  // such orphan into the workspace that's active when we first see it.
+  async function repairOrphanShares(){
+    if(!sbClient||!currentUser||!wsId)return;
+    try{
+      const {data,error}=await sbClient.from(SHARE_TABLE)
+        .select('id')
+        .eq('user_id',currentUser.id)
+        .is('workspace_id',null);
+      if(error||!data||data.length===0)return;
+      for(const row of data){
+        await sbClient.from(SHARE_TABLE)
+          .update({workspace_id:wsId})
+          .eq('id',row.id)
+          .eq('user_id',currentUser.id);
+      }
+      console.info('Repaired '+data.length+' share row(s) with missing workspace_id');
+      loadShareInfo();
+    }catch(e){console.warn('repairOrphanShares failed',e);}
+  }
   // Keep a ref of wsId so async callbacks can tell whether they're still current
   const wsIdRef=useRef(wsId);
   useEffect(()=>{wsIdRef.current=wsId;},[wsId]);
@@ -610,6 +643,7 @@ function App(){
   useEffect(()=>{
     setShareInfo(null);
     loadShareInfo();
+    repairOrphanShares();
   },[wsId,currentUser]);
 
   // ===== Undo / Redo handlers =====
@@ -702,26 +736,25 @@ function App(){
       setShareLoading(false);
     }
   }
-  async function refreshShareSnapshot(){
-    // Push current state to existing share record so viewers see latest
-    if(!sbClient||!currentUser||!shareInfo)return;
-    // Safety: never write this workspace's data into a share belonging to another one.
-    // shareInfo can briefly hold the previous workspace's record right after a switch.
-    if(shareInfo.workspace_id && shareInfo.workspace_id!==wsId)return;
+  // Push a workspace's data to its own share record.
+  // Takes the workspace id and snapshot EXPLICITLY rather than reading component
+  // state — a debounced callback fires ~700ms after the render that created it,
+  // by which time the user may have switched workspaces, and any state read here
+  // (shareInfo, projs, wsId) could belong to a different workspace than intended.
+  // The .eq('workspace_id') filter means a mismatch simply updates zero rows.
+  async function pushShareSnapshot(targetWsId, snapshot, wsName){
+    if(!sbClient||!currentUser||!targetWsId)return;
     try{
-      const ws=workspaces.find(w=>w.id===wsId);
-      const wsName=ws?ws.name:'';
-      const wsSnap={projs,tags,title,nPid,nTid,name:wsName};
       const {error}=await sbClient.from(SHARE_TABLE).update({
-        workspace_data:wsSnap,
+        workspace_data:snapshot,
         workspace_name:wsName,
         updated_at:new Date().toISOString()
       })
-        .eq('id',shareInfo.id)
         .eq('user_id',currentUser.id)
-        .eq('workspace_id',wsId);   // row won't match unless it's this workspace's share
+        .eq('workspace_id',targetWsId)
+        .eq('is_active',true);
       if(error)throw error;
-    }catch(e){console.warn('refreshShareSnapshot failed',e);}
+    }catch(e){console.warn('pushShareSnapshot failed',e);}
   }
   async function updateShareExpiry(daysToExpire){
     if(!sbClient||!currentUser||!shareInfo)return;
