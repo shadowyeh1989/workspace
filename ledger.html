@@ -1409,6 +1409,10 @@
   .month-stats-num.empty { color: var(--text-3); font-style: italic; font-size: 12px; }
   .month-stats-num.profit { color: var(--accent); }
   .month-stats-num.count { color: var(--text-2); font-size: 12.5px; }
+  /* Weekly / daily workload columns — derived figures, so dialled back a notch
+     so they don't compete with the headline income / profit numbers. */
+  .month-stats-num.sub { color: var(--text-2); font-size: 12.5px; }
+  .month-stats-num.sub.empty { color: var(--text-3); }
 
   /* Footer totals + averages */
   table.month-stats tfoot td {
@@ -5133,6 +5137,21 @@ function renderMonthStats() {
   const isCurrentYear = String(now.getFullYear()) === activeYear;
   const currentMonth = isCurrentYear ? now.getMonth() + 1 : null;
 
+  // Calendar helpers for the weekly / daily workload columns.
+  // Daily average follows an office-worker convention: Mon–Fri only, weekends off.
+  // National holidays are deliberately ignored — every Mon–Fri counts as a work day.
+  const yearNum = Number(activeYear);
+  const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
+  const weekdaysInMonth = (y, m) => {
+    const total = daysInMonth(y, m);
+    let n = 0;
+    for (let d = 1; d <= total; d++) {
+      const dow = new Date(y, m - 1, d).getDay();
+      if (dow !== 0 && dow !== 6) n++;   // 0 = Sun, 6 = Sat
+    }
+    return n;
+  };
+
   // Aggregate per month
   const monthStats = [];
   let totalIncome = 0;
@@ -5148,12 +5167,20 @@ function renderMonthStats() {
       profit += Number(p.afterExpense) || 0;
       hrs += totalHours(p);
     });
+    const mDays = daysInMonth(yearNum, m);
+    const mWeekdays = weekdaysInMonth(yearNum, m);
     monthStats.push({
       month: m,
       count: arr.length,
       income,
       profit,
       hrs,
+      days: mDays,
+      weekdays: mWeekdays,
+      // Weeks in a month aren't whole — use the real day count / 7 so a 31-day
+      // month isn't treated the same as a 28-day one.
+      weeklyHrs: hrs > 0 ? hrs / (mDays / 7) : 0,
+      dailyHrs: hrs > 0 && mWeekdays > 0 ? hrs / mWeekdays : 0,
       hasData: arr.length > 0
     });
     totalIncome += income;
@@ -5176,6 +5203,18 @@ function renderMonthStats() {
   const avgIncomeByElapsed = totalIncome / monthsElapsed;
   const avgProfitByElapsed = totalProfit / monthsElapsed;
   const avgHrsByElapsed = totalHrs / monthsElapsed;
+
+  // Weekly / daily averages across the elapsed part of the year.
+  // Count real calendar days and real Mon–Fri days over months 1..monthsElapsed,
+  // so the figures line up with the monthly average above (which treats the
+  // current month as a whole month).
+  let elapsedDays = 0, elapsedWeekdays = 0;
+  for (let m = 1; m <= monthsElapsed; m++) {
+    elapsedDays += monthStats[m - 1].days;
+    elapsedWeekdays += monthStats[m - 1].weekdays;
+  }
+  const avgWeeklyHrsByElapsed = elapsedDays > 0 ? totalHrs / (elapsedDays / 7) : 0;
+  const avgDailyHrsByElapsed = elapsedWeekdays > 0 ? totalHrs / elapsedWeekdays : 0;
 
   // Header
   const header = document.createElement('div');
@@ -5211,7 +5250,9 @@ function renderMonthStats() {
         <th class="num">收入</th>
         <th class="num">淨利</th>
         <th class="num">工時</th>
-        <th style="width:30%">淨利視覺化</th>
+        <th class="num">週平均</th>
+        <th class="num">日平均</th>
+        <th style="width:22%">淨利視覺化</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -5237,6 +5278,8 @@ function renderMonthStats() {
       <td class="month-stats-num${s.income > 0 ? '' : ' empty'}">${s.income > 0 ? 'NT$ ' + fmtNum(s.income) : '—'}</td>
       <td class="month-stats-num${s.profit > 0 ? ' profit' : ' empty'}">${s.profit !== 0 ? 'NT$ ' + fmtNum(s.profit) : '—'}</td>
       <td class="month-stats-num${s.hrs > 0 ? '' : ' empty'}">${s.hrs > 0 ? fmtHours(s.hrs) + ' h' : '—'}</td>
+      <td class="month-stats-num sub${s.weeklyHrs > 0 ? '' : ' empty'}">${s.weeklyHrs > 0 ? (Math.round(s.weeklyHrs * 10) / 10) + ' h' : '—'}</td>
+      <td class="month-stats-num sub${s.dailyHrs > 0 ? '' : ' empty'}">${s.dailyHrs > 0 ? (Math.round(s.dailyHrs * 10) / 10) + ' h' : '—'}</td>
       <td class="month-stats-bar-cell">
         <div class="month-stats-bar-wrap">
           <div class="month-stats-bar-track">
@@ -5266,6 +5309,8 @@ function renderMonthStats() {
       <td class="num">NT$ ${fmtNum(totalIncome)}</td>
       <td class="num profit">NT$ ${fmtNum(totalProfit)}</td>
       <td class="num">${fmtHours(totalHrs)} h</td>
+      <td class="num"></td>
+      <td class="num"></td>
       <td></td>
     </tr>
     ${isCurrentYear ? `
@@ -5275,6 +5320,8 @@ function renderMonthStats() {
       <td class="num">NT$ ${fmtNum(Math.round(avgIncomeByElapsed))}</td>
       <td class="num">NT$ ${fmtNum(Math.round(avgProfitByElapsed))}</td>
       <td class="num">${fmtHours(Math.round(avgHrsByElapsed * 10) / 10)} h</td>
+      <td class="num">${(Math.round(avgWeeklyHrsByElapsed * 10) / 10)} h</td>
+      <td class="num">${(Math.round(avgDailyHrsByElapsed * 10) / 10)} h</td>
       <td></td>
     </tr>
     ` : ''}
@@ -5289,6 +5336,8 @@ function renderMonthStats() {
   hint.style.cssText = 'margin-top:14px;font-size:11.5px;color:var(--text-3);line-height:1.7';
   hint.innerHTML = `
     ${isCurrentYear ? `<strong style="color:var(--text-2);font-weight:500">月平均 · 至 ${currentMonth} 月</strong> 會根據今天的日期自動更新,把空白月份也算進去,反映年度至今的真實狀況。<br>` : ''}
+    <strong style="color:var(--text-2);font-weight:500">週平均</strong> = 該期間工時 ÷ 實際週數(日曆天 ÷ 7)。
+    <strong style="color:var(--text-2);font-weight:500">日平均</strong> = 該期間工時 ÷ 工作日天數,只算週一到週五,六日當休假(國定假日不扣除)。<br>
     點擊任一列可以跳轉到該月份的詳細紀錄。
   `;
   container.appendChild(hint);
