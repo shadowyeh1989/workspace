@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>岡山・廣島 7 天</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;--ink:#14202b;--mute:#5b6873;--sea:#0e4d7a;--seaBg:#eaf3fa;--red:#e0442a;--line:#dfe6ec}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 "Noto Sans TC",system-ui,sans-serif;display:flex;flex-direction:column;overflow-x:clip}
+header{background:var(--sea);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 14px 0}
+h1{margin:0 0 8px;font-size:20px;font-weight:900;line-height:1.2}
+h1 small{font-weight:400;font-size:13px;opacity:.85;margin-left:8px}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;border:0;background:transparent;color:#fff;opacity:.75;font:inherit;font-size:15px;padding:8px 12px 10px;cursor:pointer;border-bottom:3px solid transparent;min-height:44px}
+.tab b{font-weight:700}.tab span{font-size:12px;margin-left:4px}
+.tab[aria-selected=true]{opacity:1;border-color:#fff}
+#map{height:48vh;min-height:300px;flex:none;background:#e8eef2}
+.pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--red);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);display:grid;place-items:center}
+.pin b{transform:rotate(45deg);color:#fff;font:700 13px "Noto Sans TC",sans-serif}
+.pin.on{background:var(--sea);transform:rotate(-45deg) scale(1.25)}
+.lbl{background:#fff;border:0;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.25);color:var(--red);font:700 12px "Noto Sans TC",sans-serif;padding:2px 6px}
+.lbl::before{display:none}
+.panel{flex:1;background:var(--bg);border-radius:18px 18px 0 0;margin-top:-16px;position:relative;z-index:500;box-shadow:0 -4px 14px rgba(0,0,0,.08);padding:14px 0 calc(30px + env(safe-area-inset-bottom))}
+.cards{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:4px 14px 12px;scroll-snap-type:x proximity;scrollbar-width:none}.cards::-webkit-scrollbar{display:none}
+.c{flex:none;width:150px;min-height:72px;border:2px solid transparent;background:#f1f4f7;border-radius:14px;padding:8px 10px;text-align:left;font:inherit;color:inherit;cursor:pointer;scroll-snap-align:center}
+.c .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;font-size:12px;font-weight:700;margin-right:6px}
+.c small{font-size:12px;color:var(--mute)}
+.c b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;line-height:1.35;margin-top:2px}
+.c[aria-current=true]{border-color:var(--red);background:#fff3f0}
+.gap{flex:none;width:58px;text-align:center;font-size:11px;color:var(--mute);line-height:1.3}
+.gap::before{content:"";display:block;height:2px;background:repeating-linear-gradient(90deg,var(--mute) 0 3px,transparent 3px 6px);margin:0 4px 4px}
+.wrap{padding:0 14px;max-width:760px;margin:0 auto}
+.det{border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.det .when{color:var(--red);font-weight:700;font-size:14px}
+.det h2{margin:2px 0 6px;font-size:22px;line-height:1.25}
+.det p{margin:0 0 10px}
+.meta{color:var(--mute);font-size:14px;margin-bottom:8px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-size:15px;cursor:pointer;text-decoration:none}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+.btn[disabled]{opacity:.4;cursor:default}
+.gm{margin-top:12px;border-radius:12px;overflow:hidden;aspect-ratio:4/3;background:var(--seaBg)}
+.gm iframe{width:100%;height:100%;border:0}
+.legnext{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--seaBg);font-size:14px}
+.pay{font-style:normal;display:inline-block;font-size:12px;font-weight:700;line-height:1;padding:4px 7px;border-radius:6px;margin-right:6px;vertical-align:2px;white-space:nowrap;color:#fff}
+.pay.jr{background:#0e4d7a}.pay.ic{background:#2f8f5b}.pay.cash{background:#b7791f}.pay.taxi{background:#6b5ca5}
+h3{font-size:17px;margin:22px 0 4px}
+.lead{color:var(--mute);margin:0 0 8px;font-size:15px}
+.tl{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:46px minmax(0,1fr);gap:10px;padding:7px 6px;border-radius:10px}
+.row .t{font-size:13px;font-weight:700;text-align:right;white-space:nowrap;padding-top:2px}
+.row b{display:block;line-height:1.35}.row span{display:block;font-size:13px;color:var(--mute)}
+.row.s{cursor:pointer}.row.s:hover,.row.s[aria-current=true]{background:var(--seaBg)}
+.row.m b{font-weight:500;color:var(--sea);font-size:14px}.row.m .t{color:var(--mute);font-weight:500}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--mute);margin:14px 0 0}
+footer{color:var(--mute);font-size:13px;margin-top:16px}
+.tab:focus-visible,.btn:focus-visible,.c:focus-visible,.row:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+@media(min-width:900px){body{flex-direction:row;flex-wrap:wrap}header{width:100%}#map{height:auto;flex:1 1 55%;min-height:calc(100vh - 100px)}.panel{flex:0 0 45%;margin:0;border-radius:0;height:calc(100vh - 100px);overflow:auto}}
+</style>
+</head>
+<body>
+<header><h1>岡山・廣島 7 天<small>2027/1/12–1/18</small></h1><nav class="tabs" id="tabs"></nav></header>
+<div id="map"></div>
+<section class="panel">
+  <div class="cards" id="cards"></div>
+  <div class="wrap">
+    <div class="det" id="det"></div>
+    <h3 id="dt"></h3><p class="lead" id="lead"></p>
+    <ol class="tl" id="tl"></ol>
+    <p class="legend"><span><i class="pay jr">周遊券</i>JR 周遊券（1/13–1/17）</span><span><i class="pay ic">Suica</i>刷 Suica</span><span><i class="pay cash">現金</i>備零錢</span><span><i class="pay taxi">計程車</i>現金或刷卡</span></p>
+    <footer>座標為手動標示，可能有些微偏差；以 Google 地圖為準。過 JR 閘門插周遊券，不要刷 Suica。宮島訪問稅 100 円、錦帶橋入橋券 500 円另付。地圖 © OpenStreetMap、CARTO。</footer>
+  </div>
+</section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+{
+/* ===== 行程資料：要改行程就改這裡（c = [緯度, 經度]）===== */
+const DAYS=[
+{id:'d12',date:'1/12',dow:'二',title:'抵達日：岡山站前',lead:'落地後大約 16:00 到飯店，傍晚只逛站前，晚餐吃岡山名物デミカツ丼。',items:[
+{k:'s',t:'14:35',n:'岡山桃太郎機場',q:'岡山桃太郎空港',c:[34.7569,133.8553],st:'45 分',note:'虎航 IT 桃園 11:12 起飛。入境、領行李。'},
+{k:'m',t:'15:20',p:'Suica',n:'機場利木津巴士 → 岡山站西口',d:'約 30 分',note:'2 號乘車處，780 円'},
+{k:'m',t:'15:50',p:'Suica',n:'走到東口站前，搭路面電車東山線到「城下」',d:'約 10 分',note:'160 円，後門上、前門下車付款，不收信用卡'},
+{k:'s',t:'16:00',n:'The OneFive Okayama',q:'The OneFive Okayama',c:[34.6641,133.9298],st:'30 分',note:'Check-in、放行李，再搭電車回站前。回到岡山站時，順便用綠色售票機換周遊券（要帶護照），並劃好 1/13 新幹線指定席。'},
+{k:'s',t:'16:30',n:'桃太郎雕像',q:'桃太郎像 岡山駅東口',c:[34.666,133.9195],st:'15 分',note:'岡山站東口廣場。'},
+{k:'s',t:'17:00',n:'Bic Camera 岡山站前店',q:'ビックカメラ 岡山駅前店',c:[34.665,133.9206],st:'1 小時',note:'清單地點。'},
+{k:'s',t:'18:00',n:'晚餐：みのるダイニング',q:'みのるダイニング さんすて岡山',c:[34.6666,133.918],st:'1 小時',note:'站內さんすて岡山，岡山縣產ピーチポークのデミカツ丼。'},
+{k:'m',t:'19:00',p:'',n:'回飯店休息',d:'',note:'隔天早上 7:30 出發'}]},
+{id:'d13',date:'1/13',dow:'三',title:'錦帶橋・宮島：中午看海中神社',lead:'12:55 滿潮 320cm，12:00–14:00 社殿和大鳥居都浮在海上。早上先去岩國錦帶橋，11:50 回到宮島接滿潮。',items:[
+{k:'m',t:'07:30',p:'周遊券',n:'岡山 → 廣島（新幹線）',d:'40 分',note:'JR 周遊券，先劃指定席'},
+{k:'m',t:'08:20',p:'周遊券',n:'廣島 → 岩國（JR 山陽本線）',d:'約 50 分',note:'JR 周遊券'},
+{k:'m',t:'09:15',p:'現金',n:'岩國站前 1 號乘車處搭巴士 → 錦帶橋',d:'約 20 分',note:'單程約 300 円，備現金'},
+{k:'s',t:'09:35',n:'錦帶橋',q:'錦帯橋',c:[34.1675,132.1779],st:'1 小時',note:'五連拱木橋。入橋券大人 500 円，往返同一張。'},
+{k:'m',t:'10:40',p:'現金＋周遊券',n:'巴士回岩國站 → JR 到宮島口',d:'約 50 分',note:'巴士現金；JR 周遊券'},
+{k:'m',t:'11:40',p:'周遊券',n:'JR 渡輪 → 宮島',d:'10 分',note:'周遊券可搭 JR 渡輪；宮島訪問稅 100 円另付'},
+{k:'s',t:'12:15',n:'嚴島神社（滿潮）',q:'厳島神社',c:[34.2959,132.3199],st:'45 分',note:'潮位約 305→320cm。昇殿料 ¥300，迴廊一圈 20–30 分。'},
+{k:'s',t:'13:00',n:'御笠濱拍海上大鳥居',q:'厳島神社 大鳥居',c:[34.2968,132.3192],st:'30 分',note:'從岸上拍，不用走下去。'},
+{k:'s',t:'13:30',n:'午餐：牡蠣屋',q:'牡蠣屋 宮島',c:[34.2985,132.3216],st:'1 小時',note:'表參道上，推薦「牡蠣屋定食」；備選「焼がきのはやし」。'},
+{k:'s',t:'14:30',n:'豐國神社 千疊閣・五重塔',q:'豊国神社 千畳閣',c:[34.2975,132.321],st:'30 分',note:'潮位還在 250cm 以上，從高處再拍一次浮在海上的神社。'},
+{k:'s',t:'15:00',n:'大聖院',q:'大聖院 宮島',c:[34.2924,132.3189],st:'45 分',note:'從神社走 10 分。'},
+{k:'s',t:'15:45',n:'表參道・町屋通散步',q:'宮島表参道商店街',c:[34.2995,132.3221],st:'1 小時',note:'坂本菓子舗楓葉饅頭、Choshuya（清單）。'},
+{k:'m',t:'17:00',p:'周遊券',n:'JR 渡輪 → 宮島口 → 廣島 → 岡山',d:'約 1.5 小時',note:'渡輪要搭 JR 那家才能用周遊券；日落約 17:20'},
+{k:'s',t:'19:00',n:'晚餐：福壽司（岡山站前）',q:'福寿司 岡山駅前',c:[34.6655,133.9216],st:'1 小時',note:'名物「わらどん」（鰆魚丼）；先確認營業時間。'}]},
+{id:'d14',date:'1/14',dow:'四',title:'倉敷・兒島・鷲羽山',lead:'上午趁人少拍美觀地區，大原美術館冬天只開到 15:00；傍晚趕到鷲羽山看瀨戶大橋夕陽（日落約 17:25）。',items:[
+{k:'m',t:'08:30',p:'周遊券',n:'岡山 → 倉敷（JR 山陽本線）',d:'17 分',note:'JR 周遊券；出站走 15 分'},
+{k:'s',t:'09:05',n:'倉敷美觀地區',q:'倉敷美観地区',c:[34.5955,133.7716],st:'1.5 小時',note:'早上人最少，先拍運河和柳樹；倉敷館觀光案內所。'},
+{k:'s',t:'10:30',n:'阿智神社',q:'阿智神社 倉敷',c:[34.597,133.77],st:'30 分',note:'爬一段石階，可以俯瞰屋頂。'},
+{k:'s',t:'11:00',n:'日本鄉土玩具館・倉敷物語館',q:'日本郷土玩具館',c:[34.5957,133.7732],st:'45 分',note:''},
+{k:'s',t:'11:45',n:'午餐：冨来屋本舗 本館',q:'冨来屋本舗 本館 倉敷',c:[34.5964,133.7722],st:'1 小時',note:'きびそば、瀨戶內海魚貝、千屋牛；週一公休。'},
+{k:'s',t:'12:45',n:'大原美術館',q:'大原美術館',c:[34.5961,133.7709],st:'1.5 小時',note:'冬季 9:00–15:00，週一休館。'},
+{k:'s',t:'14:15',n:'下午茶：パーラー果物小町',q:'パーラー果物小町 倉敷',c:[34.596,133.7703],st:'45 分',note:'くらしき宵待ちGARDEN 裡；備選「倉敷桃子」。'},
+{k:'m',t:'15:00',p:'周遊券',n:'倉敷 → 岡山 → 兒島（JR）',d:'約 50 分',note:'岡山轉 Marine Liner 約 23 分'},
+{k:'s',t:'15:50',n:'兒島牛仔褲街',q:'児島ジーンズストリート',c:[34.4805,133.817],st:'1 小時',note:'店家大多 17:00–18:00 打烊。'},
+{k:'m',t:'16:50',p:'計程車',n:'計程車 → 鷲羽山',d:'15 分',note:'巴士班次少'},
+{k:'s',t:'17:05',n:'鷲羽山夕陽',q:'鷲羽山展望台',c:[34.4375,133.8148],st:'40 分',note:'瀨戶大橋和小島，清單裡最好的夕陽點。'},
+{k:'m',t:'17:45',p:'計程車＋周遊券',n:'計程車回兒島站 → 岡山',d:'約 50 分',note:''},
+{k:'s',t:'19:00',n:'晚餐：さんすて岡山',q:'さんすて岡山',c:[34.6666,133.918],st:'1 小時',note:'えびめし、岡山ばら寿司等在地名物。'}]},
+{id:'d15',date:'1/15',dow:'五',title:'尾道',lead:'搭纜車上千光寺，再一路走下坡經過貓之細道回到商店街，不用走回頭路。',items:[
+{k:'m',t:'08:30',p:'周遊券',n:'岡山 → 福山（新幹線）→ 尾道（JR）',d:'約 1 小時',note:'JR 周遊券；出站走 15 分到纜車站'},
+{k:'s',t:'09:45',n:'千光寺公園展望台・千光寺',q:'千光寺公園 展望台',c:[34.4115,133.1985],st:'1 小時 15 分',note:'搭千光寺山纜車上山；展望台拍尾道水道和向島。'},
+{k:'s',t:'11:00',n:'文學小路 → 貓之細道',q:'猫の細道 尾道',c:[34.41,133.2004],st:'1 小時',note:'下坡路，邊走邊拍。'},
+{k:'s',t:'12:00',n:'午餐：尾道ラーメン 丸ぼし',q:'尾道ラーメン 丸ぼし',c:[34.4089,133.2012],st:'1 小時',note:'背脂加小魚乾湯頭；週三公休；備選「壱番館」「中華そば 朱」。'},
+{k:'s',t:'13:00',n:'尾道本通商店街',q:'尾道本通り商店街',c:[34.4085,133.1998],st:'1.5 小時',note:'補清單上還沒排的咖啡店。'},
+{k:'s',t:'14:30',n:'尾道水道港邊',q:'尾道駅前港湾緑地',c:[34.4045,133.1938],st:'1.5 小時',note:'東御所町、土堂兩個圖釘地點。'},
+{k:'s',t:'16:00',n:'港邊咖啡店・夕陽',q:'尾道水道',c:[34.4066,133.1985],st:'1.5 小時',note:'日落約 17:25。'},
+{k:'s',t:'17:30',n:'晚餐：Yamatoyu',q:'Yamatoyu 尾道',c:[34.4081,133.203],st:'1.5 小時',note:'清單上的居酒屋，建議先訂位。'},
+{k:'m',t:'19:00',p:'周遊券',n:'尾道 → 福山 → 岡山',d:'約 1 小時',note:'JR 周遊券'}]},
+{id:'d16',date:'1/16',dow:'六',title:'廣島市區',lead:'上午把和平公園一帶走完，下午去廣島城再回本通逛街，晚餐吃廣島燒。',items:[
+{k:'m',t:'08:30',p:'周遊券',n:'岡山 → 廣島（新幹線）',d:'40 分',note:'JR 周遊券'},
+{k:'m',t:'09:10',p:'Suica',n:'路面電車 → 原爆ドーム前',d:'20 分',note:'電車站在廣島站 2 樓；IC 上下車各刷一次，約 240 円'},
+{k:'s',t:'09:30',n:'原爆圓頂屋・原爆中心點',q:'原爆ドーム',c:[34.3955,132.4536],st:'30 分',note:'中心點在圓頂屋後方小巷內。'},
+{k:'s',t:'10:00',n:'和平紀念公園・原爆之子像',q:'原爆の子の像',c:[34.393,132.4528],st:'45 分',note:'也可以順路去追悼平和祈願館。'},
+{k:'s',t:'10:45',n:'廣島和平紀念資料館',q:'広島平和記念資料館',c:[34.3915,132.452],st:'1.5 小時',note:'週末會排隊，早點進去。'},
+{k:'s',t:'12:15',n:'廣島紙鶴塔',q:'おりづるタワー',c:[34.3961,132.4545],st:'45 分',note:'頂樓展望台俯瞰圓頂屋和公園。'},
+{k:'s',t:'13:00',n:'午餐：SOGO 廣島店',q:'そごう広島店',c:[34.3966,132.4579],st:'1 小時',note:'清單地點，餐廳樓層。'},
+{k:'s',t:'14:00',n:'廣島城',q:'広島城',c:[34.4027,132.4594],st:'1 小時',note:''},
+{k:'s',t:'15:00',n:'縮景園（補充）',q:'縮景園',c:[34.4006,132.4677],st:'45 分',note:'想多逛街可以跳過。'},
+{k:'s',t:'15:45',n:'本通・PARCO・Pokémon Center',q:'広島本通商店街',c:[34.3936,132.458],st:'2.5 小時',note:'B-SIDE LABEL 也在附近，都是清單地點。'},
+{k:'s',t:'18:15',n:'晚餐：みっちゃん総本店 八丁堀本店',q:'お好み焼 みっちゃん総本店 八丁堀本店',c:[34.3943,132.4628],st:'1 小時 15 分',note:'招牌「DXスペシャル」；備選「元祖へんくつや」、お好み村。'},
+{k:'m',t:'19:30',p:'Suica＋周遊券',n:'路面電車回廣島站 → 新幹線回岡山',d:'約 1 小時',note:'JR 周遊券'}]},
+{id:'d17',date:'1/17',dow:'日',title:'備中松山城・鬼ノ城・吉備津神社',lead:'早上去現存唯一的山城天守，下午搭計程車上鬼ノ城，回程順路去吉備津神社。',items:[
+{k:'m',t:'07:45',p:'周遊券',n:'岡山 → 備中高梁（JR 伯備線）',d:'約 40 分',note:'特急やくも較快，先查班次'},
+{k:'m',t:'08:30',p:'計程車',n:'計程車 → ふいご峠，再走 20 分上山',d:'35 分',note:'700m 輕健行'},
+{k:'s',t:'09:05',n:'備中松山城',q:'備中松山城',c:[34.8091,133.6222],st:'1 小時 10 分',note:'現存 12 天守之一。'},
+{k:'m',t:'10:15',p:'計程車',n:'下山、計程車回備中高梁站',d:'30 分',note:''},
+{k:'s',t:'10:45',n:'高梁城下町散步',q:'石火矢町ふるさと村',c:[34.7965,133.6185],st:'45 分',note:'站前到武家屋敷一帶（補充）。'},
+{k:'m',t:'11:30',p:'周遊券',n:'備中高梁 → 總社（JR 伯備線）',d:'約 25 分',note:''},
+{k:'s',t:'12:00',n:'午餐：總社站周邊',q:'総社駅',c:[34.6723,133.7465],st:'1 小時',note:'推薦店還沒查，待補。'},
+{k:'m',t:'13:00',p:'計程車',n:'計程車 → 鬼城山遊客中心',d:'30 分',note:''},
+{k:'s',t:'13:30',n:'鬼ノ城',q:'鬼城山ビジターセンター',c:[34.7253,133.765],st:'1.5 小時',note:'西門往返約 30 分，外周一圈約 1 小時；廁所只有遊客中心。'},
+{k:'m',t:'15:00',p:'計程車＋周遊券',n:'計程車 → 服部站，吉備線 → 吉備津',d:'約 45 分',note:'先請司機等或當場叫車'},
+{k:'s',t:'15:50',n:'吉備津神社',q:'吉備津神社',c:[34.6713,133.8506],st:'50 分',note:'國寶本殿和長迴廊；時間不夠就跳過。'},
+{k:'m',t:'16:45',p:'周遊券',n:'吉備津 → 岡山',d:'20 分',note:''},
+{k:'s',t:'17:30',n:'晚餐：食堂やまと',q:'食堂やまと 岡山 表町',c:[34.6611,133.9284],st:'1 小時',note:'昭和 23 年開業，中華そば或ソースかつ丼；16:00–19:00，週二公休。'},
+{k:'m',t:'18:30',p:'',n:'回飯店整理行李',d:'',note:'隔天退房'}]},
+{id:'d18',date:'1/18',dow:'一',title:'後樂園・岡山城・回程',lead:'一開門就進後樂園，午餐買驛弁帶到機場，13:00 左右到機場。',items:[
+{k:'s',t:'07:30',n:'The OneFive 退房',q:'The OneFive Okayama',c:[34.6641,133.9298],st:'20 分',note:'行李寄放櫃台。'},
+{k:'m',t:'07:50',p:'',n:'走到後樂園（過月見橋）',d:'10–15 分',note:''},
+{k:'s',t:'08:00',n:'岡山後樂園',q:'岡山後楽園',c:[34.6681,133.9351],st:'1.5 小時',note:'冬季 8:00 開園。'},
+{k:'s',t:'09:30',n:'岡山城',q:'岡山城',c:[34.6652,133.9358],st:'1 小時',note:'走月見橋過去，拍城和旭川倒影。'},
+{k:'m',t:'10:30',p:'Suica',n:'走回飯店拿行李，搭電車到岡山站',d:'約 1 小時',note:'電車 160 円，IC 或現金'},
+{k:'s',t:'11:30',n:'午餐：駅弁にぎわい',q:'旅弁当 駅弁にぎわい 岡山',c:[34.6665,133.9183],st:'45 分',note:'買祭ずし、えびめし等驛弁，到機場再吃。'},
+{k:'m',t:'12:30',p:'Suica',n:'機場巴士（西口 21 號乘車處）',d:'約 30 分',note:'780 円，可刷 IC'},
+{k:'s',t:'13:00',n:'岡山桃太郎機場',q:'岡山桃太郎空港',c:[34.7569,133.8553],st:'',note:'虎航報到、托運。15:25 起飛，17:30 抵達桃園。'}]}
+];
+/* ===== 資料到這裡 ===== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const payc=p=>p.startsWith('周遊')?'jr':p.startsWith('Suica')?'ic':p.startsWith('現金')?'cash':'taxi';
+const chip=p=>p?`<i class="pay ${payc(p)}">${esc(p)}</i>`:'';
+const gq=q=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
+const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([34.6,133.3],8);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'}).addTo(map);
+L.control.zoom({position:'bottomright'}).addTo(map);
+const layer=L.layerGroup().addTo(map);
+let day=DAYS[0],sel=0,markers={},gmOpen=false;
+const stops=()=>day.items.map((x,i)=>x.k==='s'?i:-1).filter(i=>i>=0);
+const short=n=>n.replace(/^(午餐|晚餐|下午茶)：/,'');
+function drawMap(){
+  layer.clearLayers();markers={};
+  const S=stops(),pts=S.map(i=>day.items[i].c);
+  L.polyline(pts,{color:'#e0442a',weight:4,opacity:.9}).addTo(layer);
+  S.forEach((i,n)=>{const x=day.items[i];
+    const m=L.marker(x.c,{icon:L.divIcon({className:'',html:`<div class="pin" id="p${i}"><b>${n+1}</b></div>`,iconSize:[30,30],iconAnchor:[15,30]})})
+      .bindTooltip(esc(short(x.n)),{permanent:true,direction:'top',offset:[0,-30],className:'lbl l'+i})
+      .on('click',()=>pick(i,true,false)).addTo(layer);
+    markers[i]=m});
+  map.fitBounds(L.latLngBounds(pts),{padding:[40,40],maxZoom:15});
+  document.querySelectorAll('.lbl').forEach(el=>el.style.display=el.classList.contains('l'+sel)?'':'none');
+}
+function render(){
+  $('tabs').innerHTML=DAYS.map(d=>`<button class="tab" data-d="${d.id}" aria-selected="${d===day}"><b>${d.date}</b><span>${d.dow}</span></button>`).join('');
+  $('dt').textContent=`${day.date}（${day.dow}）${day.title}`;$('lead').textContent=day.lead;
+  const S=stops();let html='',n=0;
+  day.items.forEach((x,i)=>{
+    if(x.k==='s'){html+=`<button class="c" data-i="${i}" aria-current="${i===sel}"><span class="n">${++n}</span><small>${x.t}</small><b>${esc(short(x.n))}</b></button>`}
+    else if(n>0&&n<S.length){html+=`<div class="gap">${x.d?esc(x.d):''}</div>`}
+  });
+  $('cards').innerHTML=html;
+  n=0;
+  $('tl').innerHTML=day.items.map((x,i)=>x.k==='s'
+    ?`<li class="row s" tabindex="0" data-i="${i}" aria-current="${i===sel}"><span class="t">${x.t}</span><span><b>${++n}. ${esc(x.n)}</b><span>${x.st?'停留 '+esc(x.st):''}${x.st&&x.note?' · ':''}${esc(x.note)}</span></span></li>`
+    :`<li class="row m"><span class="t">${x.t}</span><span><b>${chip(x.p)}${esc(x.n)}${x.d?'（'+esc(x.d)+'）':''}</b>${x.note?`<span>${esc(x.note)}</span>`:''}</span></li>`).join('');
+  det();
+  document.querySelectorAll('.pin').forEach(p=>p.classList.toggle('on',p.id==='p'+sel));
+  document.querySelectorAll('.lbl').forEach(el=>el.style.display=el.classList.contains('l'+sel)?'':'none');
+  const cur=$('cards').querySelector('[aria-current=true]');
+  if(cur)$('cards').scrollTo({left:cur.offsetLeft-$('cards').clientWidth/2+75,behavior:'smooth'});
+}
+function det(){
+  const S=stops(),k=S.indexOf(sel),x=day.items[sel];
+  let leg=[];for(let j=sel+1;j<day.items.length&&day.items[j].k==='m';j++)leg.push(day.items[j]);
+  $('det').innerHTML=`<div class="when">第 ${k+1} 站 · ${x.t}</div><h2>${esc(x.n)}</h2>
+  ${x.st?`<div class="meta">停留 ${esc(x.st)}</div>`:''}${x.note?`<p>${esc(x.note)}</p>`:''}
+  <div class="btns"><button class="btn" data-go="-1" ${k<=0?'disabled':''}>上一站</button><button class="btn" data-go="1" ${k>=S.length-1?'disabled':''}>下一站</button>
+  <button class="btn" data-gm>${gmOpen?'收起 Google 地圖':'Google 評分'}</button><a class="btn pri" href="${gq(x.q)}" target="_blank" rel="noopener">開 Google 地圖</a></div>
+  ${gmOpen?`<div class="gm"><iframe loading="lazy" title="Google 地圖" src="https://maps.google.com/maps?q=${encodeURIComponent(x.q)}&hl=zh-TW&z=16&output=embed"></iframe></div>`:''}
+  ${leg.length?`<div class="legnext"><b>接下來：</b>${leg.map(m=>chip(m.p)+esc(m.n)+(m.d?'（'+esc(m.d)+'）':'')).join(' → ')}</div>`:''}`;
+}
+function pick(i,fly,scroll){sel=i;render();const x=day.items[i];if(fly)map.flyTo(x.c,Math.max(map.getZoom(),15),{duration:.6});if(scroll)$('det').scrollIntoView({behavior:'smooth',block:'nearest'})}
+function setDay(id){day=DAYS.find(d=>d.id===id)||DAYS[0];sel=stops()[0];gmOpen=false;render();drawMap()}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-d],[data-i],[data-go],[data-gm]');if(!t)return;
+  if(t.dataset.d!==undefined){location.hash=t.dataset.d;return}
+  if(t.dataset.gm!==undefined){gmOpen=!gmOpen;det();return}
+  if(t.dataset.go){const S=stops(),k=S.indexOf(sel)+ +t.dataset.go;if(S[k]!=null)pick(S[k],true,false);return}
+  if(t.dataset.i!==undefined)pick(+t.dataset.i,true,t.classList.contains('row'));
+});
+document.addEventListener('keydown',e=>{const r=e.target.closest('.row.s');if(r&&(e.key==='Enter'||e.key===' ')){e.preventDefault();pick(+r.dataset.i,true,true)}});
+addEventListener('hashchange',()=>setDay(location.hash.slice(1)));
+setDay(location.hash.slice(1));
+}
+</script>
+</body>
+</html>
