@@ -72,7 +72,7 @@ footer{color:var(--mute);font-size:13px;margin-top:16px}
     <h3 id="dt"></h3><p class="lead" id="lead"></p>
     <ol class="tl" id="tl"></ol>
     <p class="legend"><span><i class="pay jr">周遊券</i>JR 周遊券（1/13–1/17）</span><span><i class="pay ic">Suica</i>刷 Suica</span><span><i class="pay cash">現金</i>備零錢</span><span><i class="pay taxi">計程車</i>現金或刷卡</span></p>
-    <footer>座標為手動標示，可能有些微偏差；以 Google 地圖為準。過 JR 閘門插周遊券，不要刷 Suica。宮島訪問稅 100 円、錦帶橋入橋券 500 円另付。地圖 © OpenStreetMap、CARTO。</footer>
+    <footer>座標為手動標示，可能有些微偏差；以 Google 地圖為準。過 JR 閘門插周遊券，不要刷 Suica。宮島訪問稅 100 円、錦帶橋入橋券 500 円另付。地圖 © OpenStreetMap。</footer>
   </div>
 </section>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -173,7 +173,7 @@ const payc=p=>p.startsWith('周遊')?'jr':p.startsWith('Suica')?'ic':p.startsWit
 const chip=p=>p?`<i class="pay ${payc(p)}">${esc(p)}</i>`:'';
 const gq=q=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([34.6,133.3],8);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 const layer=L.layerGroup().addTo(map);
 let day=DAYS[0],sel=0,markers={},gmOpen=false;
