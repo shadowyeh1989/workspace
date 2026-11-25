@@ -1,0 +1,12 @@
+{
+  "name": "岡山・廣島 7 天",
+  "short_name": "岡山廣島",
+  "start_url": "trip.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0e4d7a",
+  "icons": [
+    {"src": "trip-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}
+  ]
+}

@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>岡山・廣島 7 天</title>
+<link rel="manifest" href="trip.webmanifest">
+<link rel="apple-touch-icon" href="trip-icon.png">
+<meta name="theme-color" content="#0e4d7a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="岡山廣島">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -56,6 +63,7 @@ h3{font-size:17px;margin:22px 0 4px}
 .row b{display:block;line-height:1.35}.row span{display:block;font-size:13px;color:var(--mute)}
 .row.s{cursor:pointer}.row.s:hover,.row.s[aria-current=true]{background:var(--seaBg)}
 .row.m b{font-weight:500;color:var(--sea);font-size:14px}.row.m .t{color:var(--mute);font-weight:500}
+.off{display:none;background:#fff4d6;color:#6b4e00;font-size:13px;padding:8px 14px;line-height:1.4}.off.on{display:block}
 .legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--mute);margin:14px 0 0}
 footer{color:var(--mute);font-size:13px;margin-top:16px}
 .tab:focus-visible,.btn:focus-visible,.c:focus-visible,.row:focus-visible{outline:3px solid var(--red);outline-offset:2px}
@@ -64,6 +72,7 @@ footer{color:var(--mute);font-size:13px;margin-top:16px}
 </head>
 <body>
 <header><h1>岡山・廣島 7 天<small>2027/1/12–1/18</small></h1><nav class="tabs" id="tabs"></nav></header>
+<div class="off" id="off">目前離線：行程都能看，地圖只會顯示之前看過的區域。</div>
 <div id="map"></div>
 <section class="panel">
   <div class="cards" id="cards"></div>
@@ -72,7 +81,7 @@ footer{color:var(--mute);font-size:13px;margin-top:16px}
     <h3 id="dt"></h3><p class="lead" id="lead"></p>
     <ol class="tl" id="tl"></ol>
     <p class="legend"><span><i class="pay jr">周遊券</i>JR 周遊券（1/12–1/16）</span><span><i class="pay ic">Suica</i>刷 Suica</span><span><i class="pay cash">現金</i>備零錢</span><span><i class="pay taxi">計程車</i>現金或刷卡</span></p>
-    <footer>座標為手動標示，可能有些微偏差；以 Google 地圖為準。過 JR 閘門插周遊券，不要刷 Suica。宮島訪問稅 100 円另付。地圖 © OpenStreetMap。</footer>
+    <footer>離線使用：出發前在有網路時打開一次，並把每天每一站點過一遍，看過的地圖會存在手機裡。座標為手動標示，可能有些微偏差；以 Google 地圖為準。過 JR 閘門插周遊券，不要刷 Suica。宮島訪問稅 100 円另付。地圖 © OpenStreetMap。</footer>
   </div>
 </section>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -101,7 +110,7 @@ const DAYS=[
 {k:'s',t:'15:00',n:'紅葉谷公園散步',q:'紅葉谷公園 宮島',c:[34.2938,132.3238],st:'1 小時',note:'不用爬山的平緩步道；累了就回表參道找咖啡店。'},
 {k:'m',t:'16:15',p:'周遊券',n:'JR 渡輪 → 宮島口 → 廣島（JR）',d:'約 45 分',note:'回飯店休息'},
 {k:'s',t:'18:00',n:'晚餐：廣島站周邊',q:'広島駅',c:[34.3975,132.4753],st:'1 小時',note:'待補。'}]},
-{id:'d14',date:'1/14',dow:'四',title:'廣島市區',lead:'上午把和平公園一帶走完，下午去廣島城和廣島市現代美術館（世界繪本原畫展），傍晚回本通逛街，晚餐吃廣島燒。',items:[
+{id:'d14',date:'1/14',dow:'四',title:'廣島市區',lead:'上午把和平公園一帶走完，下午去廣島城和廣島市現代美術館（世界繪本原畫展），傍晚回本通逛街，晚餐吃廣島燒。回飯店後把大行李交給櫃台，寄宅急便到岡山的 The OneFive。',items:[
 {k:'m',t:'09:00',p:'Suica',n:'廣島站搭路面電車 → 原爆ドーム前',d:'20 分',note:'電車站在廣島站 2 樓；上下車各刷一次，約 240 円'},
 {k:'s',t:'09:20',n:'原爆圓頂屋・原爆中心點',q:'原爆ドーム',c:[34.3955,132.4536],st:'30 分',note:'中心點在圓頂屋後方小巷內。'},
 {k:'s',t:'09:50',n:'和平紀念公園・原爆之子像',q:'原爆の子の像',c:[34.3930,132.4528],st:'45 分',note:'也可以順路去追悼平和祈願館。'},
@@ -115,16 +124,7 @@ const DAYS=[
 {k:'s',t:'17:00',n:'本通・PARCO・Pokémon Center',q:'広島本通商店街',c:[34.3936,132.4580],st:'1 小時 15 分',note:'B-SIDE LABEL 也在附近，都是清單地點。'},
 {k:'s',t:'18:15',n:'晚餐：みっちゃん総本店 八丁堀本店',q:'お好み焼 みっちゃん総本店 八丁堀本店',c:[34.3943,132.4628],st:'1 小時 15 分',note:'招牌「DXスペシャル」；備選「元祖へんくつや」、お好み村。'},
 {k:'m',t:'19:30',p:'Suica',n:'路面電車回廣島站',d:'20 分',note:''}]},
-{id:'d15',date:'1/15',dow:'五',title:'兔子島・竹原',lead:'早上去大久野島餵兔子、環島散步，下午逛竹原老街，傍晚回廣島。晚上把大行李交給飯店寄宅急便到 The OneFive。',items:[
-{k:'m',t:'08:30',p:'周遊券',n:'廣島 → 三原（新幹線）→ 忠海（JR 吳線）',d:'約 1 小時',note:'吳線班次少，先查好轉乘'},
-{k:'m',t:'09:30',p:'現金',n:'忠海港買兔子飼料，搭渡輪 → 大久野島',d:'15 分',note:'360 円；島上沒有賣飼料'},
-{k:'s',t:'09:45',n:'大久野島',q:'大久野島',c:[34.3085,132.9935],st:'2.5 小時',note:'約 500–600 隻兔子；環島一圈約 4km；毒氣資料館可以了解島的戰時歷史。'},
-{k:'m',t:'12:15',p:'現金＋周遊券',n:'渡輪回忠海 → JR 到竹原',d:'30 分',note:''},
-{k:'s',t:'12:45',n:'午餐：竹原老街周邊',q:'竹原 町並み保存地区',c:[34.3440,132.9095],st:'1 小時',note:'待補。'},
-{k:'s',t:'13:45',n:'竹原町並み保存地區',q:'竹原 町並み保存地区',c:[34.3446,132.9088],st:'2 小時',note:'「安藝小京都」老街，可以逛酒藏和老商家。'},
-{k:'m',t:'15:45',p:'周遊券',n:'竹原 → 三原（JR 吳線）→ 廣島（新幹線）',d:'約 1 小時',note:''},
-{k:'s',t:'18:00',n:'晚餐：廣島站周邊',q:'広島駅',c:[34.3975,132.4753],st:'1 小時',note:'待補。晚上寄宅急便到 The OneFive。'}]},
-{id:'d16',date:'1/16',dow:'六',title:'換飯店日：尾道 → 岡山',lead:'早上退房，只帶隨身包逛尾道（大行李前一晚已寄到岡山），晚上到 The OneFive check in。',items:[
+{id:'d15',date:'1/15',dow:'五',title:'換飯店日：尾道 → 岡山',lead:'早上退房，只帶隨身包逛尾道（大行李前一晚已寄到岡山），晚上到 The OneFive check in。',items:[
 {k:'m',t:'08:30',p:'周遊券',n:'退房，廣島 → 三原（新幹線）→ 尾道（JR）',d:'約 1 小時',note:''},
 {k:'m',t:'09:30',p:'現金',n:'走到千光寺山纜車，搭纜車上山',d:'15 分',note:''},
 {k:'s',t:'09:45',n:'千光寺公園展望台・千光寺',q:'千光寺公園 展望台',c:[34.4115,133.1985],st:'1 小時 15 分',note:'展望台看尾道水道和對岸向島。'},
@@ -139,6 +139,22 @@ const DAYS=[
 {k:'m',t:'19:00',p:'周遊券',n:'尾道 → 福山 → 岡山',d:'約 1 小時',note:''},
 {k:'m',t:'20:00',p:'Suica',n:'路面電車到城下',d:'約 10 分',note:'160 円'},
 {k:'s',t:'20:20',n:'The OneFive Okayama check in',q:'The OneFive Okayama',c:[34.6641,133.9298],st:'',note:'宅急便的行李應已送到。'}]},
+{id:'d16',date:'1/16',dow:'六',title:'豐島：搭聯名船回高松',lead:'去程從宇野搭船到豐島，騎電動腳踏車逛橫尾館、豐島美術館、心臟音資料館；回程搭「可哀想に！」聯名的豐島フェリー到高松，吃讚岐烏龍麵再搭 JR 回岡山。這天單程約 1.5 小時，是唯一破例的一天。',items:[
+{k:'m',t:'07:50',p:'Suica',n:'路面電車到岡山站',d:'20 分',note:''},
+{k:'m',t:'08:20',p:'周遊券',n:'岡山 → 宇野（JR 宇野みなと線）',d:'約 45 分',note:'班次以當天為準'},
+{k:'m',t:'09:20',p:'現金',n:'宇野港 → 豐島家浦港（小豆島豊島フェリー）',d:'約 25–40 分',note:'780 円；班次少，出發前查冬季時刻'},
+{k:'s',t:'10:00',n:'家浦港租電動腳踏車',q:'豊島 家浦港',c:[34.4912,134.0610],st:'15 分',note:'島上坡多，租電動的。'},
+{k:'s',t:'10:15',n:'豐島橫尾館',q:'豊島横尾館',c:[34.4917,134.0625],st:'40 分',note:'橫尾忠則×建築師永山祐子，港邊老屋改建；510 円；冬季週二到週四休館。'},
+{k:'m',t:'10:55',p:'',n:'騎車到唐櫃',d:'約 25 分',note:''},
+{k:'s',t:'11:20',n:'豐島美術館',q:'豊島美術館',c:[34.4866,134.0927],st:'1 小時 10 分',note:'要先上網預約入館時段；冬季 10:00–16:00，週二到週四休館。'},
+{k:'s',t:'12:30',n:'午餐：豐島美術館カフェ',q:'豊島美術館',c:[34.4872,134.0938],st:'50 分',note:'冬季 10:00–16:00。'},
+{k:'s',t:'13:30',n:'心臟音資料館',q:'心臓音のアーカイブ',c:[34.4856,134.1005],st:'30 分',note:'波爾坦斯基的作品，可以錄下自己的心跳。'},
+{k:'m',t:'14:00',p:'',n:'騎車回家浦、還車',d:'35 分',note:''},
+{k:'s',t:'14:35',n:'家浦售票處：聯名周邊・船票',q:'豊島 家浦港',c:[34.4912,134.0610],st:'35 分',note:'買船票時說要「記念乗船券」（每次搭乘一張，數量有限）。'},
+{k:'m',t:'15:10',p:'現金',n:'豐島フェリー（可哀想に！聯名）→ 直島本村 → 高松港',d:'50 分',note:'週六這班經直島本村；下一班 17:20'},
+{k:'s',t:'16:10',n:'晚餐：高松港附近讚岐烏龍麵',q:'高松駅 うどん',c:[34.3510,134.0470],st:'50 分',note:'待補。'},
+{k:'m',t:'17:10',p:'周遊券',n:'高松 → 岡山（JR 快速 Marine Liner）',d:'約 1 小時',note:'高松站就在港口旁'},
+{k:'m',t:'18:15',p:'Suica',n:'路面電車回飯店',d:'20 分',note:''}]},
 {id:'d17',date:'1/17',dow:'日',title:'倉敷・兒島・表町',lead:'上午逛美觀地區，大原美術館冬天只開到 15:00，排在午餐後；下午逛兒島牛仔褲街，傍晚回岡山在表町吃晚餐。周遊券已到期，這天 JR 刷 Suica。',items:[
 {k:'m',t:'08:30',p:'Suica',n:'路面電車到岡山站 → 倉敷（JR 山陽本線）',d:'約 35 分',note:'出站走 15 分'},
 {k:'s',t:'09:05',n:'倉敷美觀地區',q:'倉敷美観地区',c:[34.5955,133.7716],st:'1.5 小時',note:'早上人最少，沿運河慢慢逛老街屋；倉敷館觀光案內所。'},
@@ -169,7 +185,7 @@ const payc=p=>p.startsWith('周遊')?'jr':p.startsWith('Suica')?'ic':p.startsWit
 const chip=p=>p?`<i class="pay ${payc(p)}">${esc(p)}</i>`:'';
 const gq=q=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([34.6,133.3],8);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 const layer=L.layerGroup().addTo(map);
 let day=DAYS[0],sel=0,markers={},gmOpen=false;
@@ -213,7 +229,7 @@ function det(){
   ${x.st?`<div class="meta">停留 ${esc(x.st)}</div>`:''}${x.note?`<p>${esc(x.note)}</p>`:''}
   <div class="btns"><button class="btn" data-go="-1" ${k<=0?'disabled':''}>上一站</button><button class="btn" data-go="1" ${k>=S.length-1?'disabled':''}>下一站</button>
   <button class="btn" data-gm>${gmOpen?'收起 Google 地圖':'Google 評分'}</button><a class="btn pri" href="${gq(x.q)}" target="_blank" rel="noopener">開 Google 地圖</a></div>
-  ${gmOpen?`<div class="gm"><iframe loading="lazy" title="Google 地圖" src="https://maps.google.com/maps?q=${encodeURIComponent(x.q)}&hl=zh-TW&z=16&output=embed"></iframe></div>`:''}
+  ${gmOpen&&!navigator.onLine?`<div class="gm" style="display:grid;place-items:center;padding:16px;text-align:center;color:var(--mute)">離線時看不到 Google 地圖</div>`:''}${gmOpen&&navigator.onLine?`<div class="gm"><iframe loading="lazy" title="Google 地圖" src="https://maps.google.com/maps?q=${encodeURIComponent(x.q)}&hl=zh-TW&z=16&output=embed"></iframe></div>`:''}
   ${leg.length?`<div class="legnext"><b>接下來：</b>${leg.map(m=>chip(m.p)+esc(m.n)+(m.d?'（'+esc(m.d)+'）':'')).join(' → ')}</div>`:''}`;
 }
 function pick(i,fly,scroll){sel=i;render();const x=day.items[i];if(fly)map.flyTo(x.c,Math.max(map.getZoom(),15),{duration:.6});if(scroll)$('det').scrollIntoView({behavior:'smooth',block:'nearest'})}
@@ -228,6 +244,9 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{const r=e.target.closest('.row.s');if(r&&(e.key==='Enter'||e.key===' ')){e.preventDefault();pick(+r.dataset.i,true,true)}});
 addEventListener('hashchange',()=>setDay(location.hash.slice(1)));
 setDay(location.hash.slice(1));
+const net=()=>{$('off').classList.toggle('on',!navigator.onLine);det()};
+addEventListener('online',net);addEventListener('offline',net);net();
+if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('trip-sw.js',{scope:'./trip.html'}).catch(()=>{})}
 }
 </script>
 </body>
